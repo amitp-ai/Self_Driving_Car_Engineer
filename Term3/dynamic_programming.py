@@ -6,6 +6,8 @@ Created on Sun Jul  2 20:00:07 2017
 @author: amit
 """
 
+import time
+
 # ----------
 # User Instructions:
 # 
@@ -57,10 +59,14 @@ def compute_value(grid,goal,cost):
     policy = [[' ' for col in range(len(grid[0]))] for row in range(len(grid))]
     
     change = True
+    
+    counter = 0
     while change:
+        print(counter); counter+=1
+        
         change = False
-        for row in range(len(grid)):
-            for col in range(len(grid[0])):
+        for row in reversed(range(len(grid))): #starting from goal is faster
+            for col in reversed(range(len(grid[0]))): #starting from goal is faster
                 if row == goal[0] and col == goal[1]:
                     if value[row][col] > 0:
                         value[row][col] = 0
@@ -82,13 +88,11 @@ def compute_value(grid,goal,cost):
                                 policy[row][col] = delta_name[a]
 
     return [value,policy]
-                
+
 value, policy = compute_value(grid,goal,cost)
 for i in range(len(value)):
     print(value[i])
 print()
 for i in range(len(policy)):
     print(policy[i])    
-    
-    
     
