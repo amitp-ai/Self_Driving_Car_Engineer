@@ -63,7 +63,7 @@ def compute_value(grid,goal,cost):
     counter = 0
     while change:
         print(counter); counter+=1
-        
+
         change = False
         for row in reversed(range(len(grid))): #starting from goal is faster
             for col in reversed(range(len(grid[0]))): #starting from goal is faster
