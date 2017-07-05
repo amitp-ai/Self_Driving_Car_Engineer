@@ -1,0 +1,1 @@
+I tried this to see if it helps with numerical instability for data2 when only using lidar data. But it doesnt help. Same behaviour as with using the shortcut. Hence the final submission is just with the shortcut.

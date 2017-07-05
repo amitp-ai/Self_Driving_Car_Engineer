@@ -1,0 +1,88 @@
+https://cdn-enterprise.discourse.org/udacity/uploads/default/original/4X/3/0/f/30f3d149c4365d9c395ed6103ecf993038b3d318.png
+https://discussions.udacity.com/t/mpc-car-space-conversion-and-output-of-solve-intuition/249469/12
+
+Guy Pavlov
+2 days ago
+It looks similar to a problem I noticed with cte calculation: the equation from mpc-to-line project is not good here, try replacing cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt)) with cte1 - (f1 - y1);
+
+
+The following approach (which I used for the project), should work for dealing with latency:
+1- assume the last/previous control parameters (i.e. steering/actuation) hold during the latency time period.
+2- estimate the state of the vehicle at the end of the latency time period given control parameters from step 1 and the current state.
+3- use the optimizer to calculate the best control at that state (i.e. assume your are at the end of latency period).
+4- feed the best control parameters found during step 3 to the simulators.This is the simplest. Of course one also can put constraints on the first control during optimization, but that would be messy
+
+
+Sujit Kirpekar
+11:49 AM
+Is there a quick overview from anyone for this project?I'm confused about the steps I need to take here - - Convert given ptsx and ptsy from global to local coordinates
+- Fit polynomial to local ptsx and ptsy
+- Set up state vector, and evolve it using kinematical model
+- Calculate cost = difference between model path & polynomial path
+- Minimize cost given some constraints ??
+- Use first state of optimal solution
+
+
+
+Kostas Oreopoulos 8:30 AM
+commented on George Zdragkas’s snippet Untitled
+just use -a as the angle to the original equations.
+This is because the  rotation matrix takes positive angles counterclockwise but in the project turning left gives negative angles.
+Also no need to do the map coordinate conversion there.
+You should do it at the beginning, once you get the reference line points. You will be working on the car coordinate system.
+
+
+
+
+Wolfgang Steiner
+5:49 AM
+If you use the first actuator command for t=0 from your MPC, this will be applied 100ms later. This will lead to an increased CTE error, which the MPC will try to compensate in the next fit and so forth. This will lead to an unsable steering behavior. To solve this, you will have to find some way to predict a steering value for a timestep 100ms in the "future". (edited)
+
+Kostas Oreopoulos
+6 days ago
+I really do not get the problem.
+Latency -> from the time I get the vehicle state till the time I apply the actuation there is a time gap.That's fine. But since the car will not get any actuation during that time gap, the model can calculate its new position (x,y,psi,v) and also the new errors. Lets call that new state S*. Just solve mpc for that state on. Get the actuations back and apply them.I do not think there is any need for something "special"
+Wolfgang Steiner
+6 days ago
+So you apply the motion model for t+100ms and feed this into the MPC?
+
+Kostas Oreopoulos 5 days ago
+@wsteiner yes. thats exactly what I do.
+You can (if you want) add another constrain equation for the mpc that at time_step = 0 we have no actuations happening (since we will cannot respond earlier that 100ms).But that is exactly the same pushing the time step by 100ms.
+Wolfgang Steiner
+5 days ago
+Okay! I thought we could just use the second steering value but this is only correct if we constrain the first one. In my project I used the mean of the first few values which also worked very well.
+
+
+
+
+
+Inverse of counter-clockwise transformation from map space to car space,  (tx,ty) is position of car in map space, (x,y) is point in map space:
+x'= (x-tx)*cos(a) + (y-ty)*sin(a)
+y'=- (x-tx)*sin(a) + (y-ty)*cos(a) 
+
+
+Andrey Glushko 3:45 PM
+yes
+Thomas Antony
+Just to be clear, when using vehicle-centric coordinates the states that are passed into the MPC solver will always have position and heading as (0,0) and 0 deg, right? 
+
+
+A note that might help
+a) your angle input is in percent [-1,1]. Transform it to the corresponding angle in rads
+b) your velocity is in mph. transform it to meters/sec If you don't your calculations would be off.For example because i missed (b) my angle was almost twice as big as it should (and your vehicle would go out of the road)
+
+
+===============================================================================================
+Visualization
+
+When working on the MPC project it helps to visualize both your reference path and the MPC trajectory path.
+
+You can display these connected point paths in the simulator by sending a list of optional x and y values to the mpc_x,mpc_y, next_x, and next_y fields in the C++ main script. If these fields are left untouched then simply no path will be displayed.
+
+The mpc_x and mpc_y variables display a line projection in green. The next_x and next_y variables display a line projection in yellow. You can display these both at the same time, as seen in the image above.
+
+These (x,y) points are displayed in reference to the vehicle's coordinate system. Recall that the x axis always points in the direction of the car’s heading and the y axis points to the left of the car. So if you wanted to display a point 10 units directly in front of the car, you could set next_x = {10.0} and next_y = {0.0}.
+
+Remember that the server returns waypoints using the map's coordinate system, which is different than the car's coordinate system. Transforming these waypoints will make it easier to both display them and to calculate the CTE and Epsi values for the model predictive controller.
+
