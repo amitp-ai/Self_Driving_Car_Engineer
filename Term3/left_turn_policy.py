@@ -64,7 +64,46 @@ cost = [2, 1, 20] # cost has 3 values, corresponding to making
 # ----------------------------------------
 # modify code below
 # ----------------------------------------
-
+         
 def optimum_policy2D(grid,init,goal,cost):
 
+    value = [[[999 for col in range(len(grid[0]))] for row in range(len(grid))],
+             [[999 for col in range(len(grid[0]))] for row in range(len(grid))],
+             [[999 for col in range(len(grid[0]))] for row in range(len(grid))]]
+    #for the policy
+    policy = [[' ' for col in range(len(grid[0]))] for row in range(len(grid))]
+    
+    #direct values are 0,1,2,3
+    direction = [[0 for col in range(len(grid[0]))] for row in range(len(grid))] #initial direction is 0 for everyone
+    direction[init[0]][init[1]] = init[2] #starting direction is fixed
+
+    change = True    
+    while change:
+        change = False
+        
+        for row in range(len(value[0])):
+            for col in range(len(value[0][0])):
+                if row == goal[0] and col == goal[1]:
+                    for act in range(len(action)):
+                        if value[act][row][col] > 0:
+                            value[act][row][col] = 0 #zero cost for goal in any orientation
+                            change = True
+                            #policy
+                            policy[row][col] = '*'
+                            
+                elif grid[row][col] == 0:
+                    for act in range(len(value)):
+                        mv_dir = action[act] + direction[row][col]
+                        mv_dir = mv_dir % len(forward) #normalize to between 0 and len(forward)-1
+                        row2 = row + forward[mv_dir][0]
+                        col2 = col + forward[mv_dir][1]
+                        
+                        v2 = value[][row][col]
+                    
+                    
+                
+    
+
+    
     return policy2D
+    
