@@ -84,16 +84,16 @@ def optimum_policy2D(grid,init,goal,cost):
         change = False
         for row in range(len(grid)):
             for col in range(len(grid[0])):
-                if row == goal[0] and col == goal[1]: #orient could be anything
-                    for orient in range(len(forward)):
+                for orient in range(len(forward)):
+                    
+                    if row == goal[0] and col == goal[1]: #orient could be anything    
                         if value[orient][row][col] > 0:
                             value[orient][row][col] = 0 #zero cost for goal in any orientation
                             change = True
                             #policy
                             policy[orient][row][col] = '*'
                             
-                elif grid[row][col] == 0:
-                    for orient in range(len(forward)):
+                    elif grid[row][col] == 0:
                         for act in range(len(action)):
                             mv_dir = action[act] + orient
                             mv_dir = mv_dir % len(forward) #normalize to between 0 and len(forward)-1
@@ -108,9 +108,11 @@ def optimum_policy2D(grid,init,goal,cost):
                                     policy[orient][row][col] = act #action_name[act]
                                     change = True
     
+                                    
     policy2D = [[' ' for col in range(len(grid[0]))] for row in range(len(grid))]
     policy2D[goal[0]][goal[1]] = '*'
     
+    #Run the policy to find the path from start
     cur_loc = init
     while (cur_loc[0] != goal[0]) or (cur_loc[1] != goal[1]):
         row,col,orient = cur_loc
