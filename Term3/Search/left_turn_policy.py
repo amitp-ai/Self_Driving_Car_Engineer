@@ -144,112 +144,112 @@ for i in range(len(pol_2d)):
 #        print(pol_tmp[i][j])        
     
         
-        
-def optimum_policy2D(grid,init,goal,cost):
-    # ----------------------------------------
-    # This is based on uniform cost search approach
-    # ----------------------------------------
-    #closed is same size as the grid used to check whether a node has been expanded/checked
-    #0 means it's not checked and 1 means it has been checked
-    closed = [[[0 for row in range(len(grid[0]))] for col in range(len(grid))],
-              [[0 for row in range(len(grid[0]))] for col in range(len(grid))],
-              [[0 for row in range(len(grid[0]))] for col in range(len(grid))],
-              [[0 for row in range(len(grid[0]))] for col in range(len(grid))]]
-    closed[init[2]][init[0]][init[1]] = 1 #initialize the starting location as checked
+#def optimum_policy2D(grid,init,goal,cost):
+#    # ----------------------------------------
+#    # This is based on uniform cost search approach
+#    # ----------------------------------------
+#    #closed is same size as the grid used to check whether a node has been expanded/checked
+#    #0 means it's not checked and 1 means it has been checked
+#    closed = [[[0 for row in range(len(grid[0]))] for col in range(len(grid))],
+#              [[0 for row in range(len(grid[0]))] for col in range(len(grid))],
+#              [[0 for row in range(len(grid[0]))] for col in range(len(grid))],
+#              [[0 for row in range(len(grid[0]))] for col in range(len(grid))]]
+#    closed[init[2]][init[0]][init[1]] = 1 #initialize the starting location as checked
+#
+#    row = init[0]
+#    col = init[1]
+#    orient = init[2]
+#    g = 0
+#
+#    fringe = []
+#    fringe.append([g, row, col, orient])
+#
+#    found = False  # flag that is set when search is complete
+#    resign = False # flag set if we can't find/expand
+#
+#   
+#
+#    #find the path
+#    actions3D = [[[-1 for row in range(len(grid[0]))] for col in range(len(grid))],
+#              [[-1 for row in range(len(grid[0]))] for col in range(len(grid))],
+#              [[-1 for row in range(len(grid[0]))] for col in range(len(grid))],
+#              [[-1 for row in range(len(grid[0]))] for col in range(len(grid))]]
+#    
+#    
+#    while not found and not resign:
+#        if len(fringe) == 0:
+#            resign = True
+#            return_val = 'fail'
+#            break
+#        else:
+#            fringe.sort() #sorts by the first value in the list element else use the key parameter
+#            fringe.reverse()
+#            next = fringe.pop()
+#            row = next[1]
+#            col = next[2]
+#            orient = next[3]
+#            g = next[0]
+#            
+#            if row == goal[0] and col == goal[1]:
+#                found = True
+#                return_val = g #path length to the goal
+#                goal_end = [row,col,orient]
+#                break
+#            else:
+#                for act in range(len(action)):
+#                    orient2 = action[act] + orient
+#                    orient2 = orient2 % len(forward) #normalize to between 0 and len(forward)-1
+#                    row2 = row + forward[orient2][0]
+#                    col2 = col + forward[orient2][1]                    
+#
+#                    if row2 >= 0 and row2 < len(grid) and col2 >=0 and col2 < len(grid[0]):
+#                        if closed[orient2][row2][col2] == 0 and grid[row2][col2] == 0:
+#                            g2 = g + cost[act]
+#                            fringe.append([g2, row2, col2, orient2])
+#                            closed[orient2][row2][col2] = 1 #mark it checked
+#                            #actions
+#                            actions3D[orient2][row2][col2] = act #[row2,col2] came from [row,col] using direction act
+#    
+#    #print("1 down")
+#    
+#    if return_val != 'fail':
+#        policy2D = [[' ' for row in range(len(grid[0]))] for col in range(len(grid))]
+#        curr_loc = goal_end
+#        policy2D[curr_loc[0]][curr_loc[1]] = '*'
+#        
+#        while(curr_loc[0] != init[0] or curr_loc[1] != init[1] or curr_loc[2] != init[2]):
+#            print(curr_loc)
+#            row,col,orient = curr_loc
+#            row_prev = row - forward[orient][0]
+#            col_prev = col - forward[orient][1] 
+#
+#            act = actions3D[orient][row][col]
+#            print(action_name[act])
+#            orient_prev = orient - action[act]
+#            orient_prev = orient_prev % len(forward) #normalize to between 0 and len(forward)-1
+#            
+#            #row_prev = row - forward[orient_prev][0]
+#            #col_prev = col - forward[orient_prev][1]                    
+#
+#            policy2D[row_prev][col_prev] = action_name[act]
+#            curr_loc = [row_prev,col_prev,orient_prev]
+#            print(curr_loc)
+#            #input("Press Enter to continue...")
+#            
+#        return_val = [return_val] + [policy2D] + [actions3D]
+#    #return_val = [return_val] + [actions3D]
+#    
+#    return return_val
+#    
+#pth_len, pol_2d,act_3d = optimum_policy2D(grid,init,goal,cost)
+#print("Path Length is: ", pth_len)
+#print()
+#for i in range(len(pol_2d)):
+#    print(pol_2d[i])
+#
+#print()
+#for i in range(len(act_3d)):
+#    print()
+#    for j in range(len(act_3d[0])):
+#        print(act_3d[i][j])
 
-    row = init[0]
-    col = init[1]
-    orient = init[2]
-    g = 0
-
-    fringe = []
-    fringe.append([g, row, col, orient])
-
-    found = False  # flag that is set when search is complete
-    resign = False # flag set if we can't find/expand
-
-   
-
-    #find the path
-    actions3D = [[[-1 for row in range(len(grid[0]))] for col in range(len(grid))],
-              [[-1 for row in range(len(grid[0]))] for col in range(len(grid))],
-              [[-1 for row in range(len(grid[0]))] for col in range(len(grid))],
-              [[-1 for row in range(len(grid[0]))] for col in range(len(grid))]]
-    
-    
-    while not found and not resign:
-        if len(fringe) == 0:
-            resign = True
-            return_val = 'fail'
-            break
-        else:
-            fringe.sort() #sorts by the first value in the list element else use the key parameter
-            fringe.reverse()
-            next = fringe.pop()
-            row = next[1]
-            col = next[2]
-            orient = next[3]
-            g = next[0]
-            
-            if row == goal[0] and col == goal[1]:
-                found = True
-                return_val = g #path length to the goal
-                goal_end = [row,col,orient]
-                break
-            else:
-                for act in range(len(action)):
-                    orient2 = action[act] + orient
-                    orient2 = orient2 % len(forward) #normalize to between 0 and len(forward)-1
-                    row2 = row + forward[orient2][0]
-                    col2 = col + forward[orient2][1]                    
-
-                    if row2 >= 0 and row2 < len(grid) and col2 >=0 and col2 < len(grid[0]):
-                        if closed[orient2][row2][col2] == 0 and grid[row2][col2] == 0:
-                            g2 = g + cost[act]
-                            fringe.append([g2, row2, col2, orient2])
-                            closed[orient2][row2][col2] = 1 #mark it checked
-                            #actions
-                            actions3D[orient2][row2][col2] = act #[row2,col2] came from [row,col] using direction act
-    
-    #print("1 down")
-    
-    if return_val != 'fail':
-        policy2D = [[' ' for row in range(len(grid[0]))] for col in range(len(grid))]
-        curr_loc = goal_end
-        policy2D[curr_loc[0]][curr_loc[1]] = '*'
-        
-        while(curr_loc[0] != init[0] or curr_loc[1] != init[1] or curr_loc[2] != init[2]):
-            print(curr_loc)
-            row,col,orient = curr_loc
-            row_prev = row - forward[orient][0]
-            col_prev = col - forward[orient][1] 
-
-            act = actions3D[orient][row][col]
-            print(action_name[act])
-            orient_prev = orient - action[act]
-            orient_prev = orient_prev % len(forward) #normalize to between 0 and len(forward)-1
-            
-            #row_prev = row - forward[orient_prev][0]
-            #col_prev = col - forward[orient_prev][1]                    
-
-            policy2D[row_prev][col_prev] = action_name[act]
-            curr_loc = [row_prev,col_prev,orient_prev]
-            print(curr_loc)
-            #input("Press Enter to continue...")
-            
-        return_val = [return_val] + [policy2D] + [actions3D]
-    #return_val = [return_val] + [actions3D]
-    
-    return return_val
-    
-pth_len, pol_2d,act_3d = optimum_policy2D(grid,init,goal,cost)
-print("Path Length is: ", pth_len)
-print()
-for i in range(len(pol_2d)):
-    print(pol_2d[i])
-
-print()
-for i in range(len(act_3d)):
-    print()
-    for j in range(len(act_3d[0])):
-        print(act_3d[i][j])    
