@@ -182,7 +182,7 @@ def optimum_policy2D_UCS(grid,init,goal,cost):
             orient = next[3]
             g = next[0]
             
-            closed[orient][row][col] = 1 #MARK IT CHECKED ONLY WHEN IT IS POPED FROM FRINGE NOT WHEN IN FRINGE
+            closed[orient][row][col] = 1 #MARK IT CHECKED ONLY WHEN IT IS POPED FROM FRINGE NOT WHEN ADDED TO FRINGE
             
             if row == goal[0] and col == goal[1]:
                 found = True
