@@ -200,7 +200,7 @@ def optimum_policy2D_UCS(grid,init,goal,cost):
                         if closed[orient2][row2][col2] == 0 and grid[row2][col2] == 0:
                             g2 = g + cost[act]
                             fringe.append([g2, row2, col2, orient2])
-                            #closed[orient2][row2][col2] = 1 #DON'T MARK IT CHECKED HERE. ONLY DO SO WHEN IT IS POPED FROM FRINGE NOT WHEN IN FRINGE
+                            #closed[orient2][row2][col2] = 1 #DON'T MARK IT CHECKED HERE. ONLY DO SO WHEN IT IS POPED FROM FRINGE NOT WHEN ADDED TO FRINGE
                             #actions
                             actions3D[orient2][row2][col2] = act #[row2,col2] came from [row,col] using direction act
         
