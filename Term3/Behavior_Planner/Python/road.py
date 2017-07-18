@@ -1,6 +1,6 @@
 import random
 from vehicle import Vehicle
-​
+
 class Road(object):
   update_width = 70
   ego_rep = " *** "
@@ -32,7 +32,7 @@ class Road(object):
           self.vehicles_added += 1
           self.vehicles[self.vehicles_added] = vehicle
           vehicle_just_added = True
-​
+
   def advance(self):
     predictions = {}
     for v_id, v in self.vehicles.items():
@@ -43,7 +43,7 @@ class Road(object):
         v.update_state(predictions)
         v.realize_state(predictions)
       v.increment()
-​
+
   def add_ego(self, lane_num, s, config_data):
     for v_id, v in self.vehicles.items():
       if v.lane == lane_num and v.s == s:
@@ -52,7 +52,7 @@ class Road(object):
     ego.configure(config_data)
     ego.state = "KL"
     self.vehicles[self.ego_key] = ego
-​
+
   def cull(self):
     ego = self.vehicles[self.ego_key]
     center_s = ego.s
@@ -79,7 +79,7 @@ class Road(object):
             self.vehicles_added += 1
             self.vehicles[self.vehicles_added] = vehicle
             print 'adding vehicle {} at lane {} with s={}'.format(self.vehicles_added, lane_num, s)
-​
+
   def __repr__(self):
     s = self.vehicles.get(self.ego_key).s
     self.camera_center = max(s, self.update_width / 2)
