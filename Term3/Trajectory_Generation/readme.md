@@ -1,3 +1,5 @@
+http://smpp.northwestern.edu/savedLiterature/Spong_Textbook.pdf (very good book)
+
 http://www.shadmehrlab.org/book/minimum_jerk/minimumjerk.htm (print this)
 
 https://www.desmos.com/ (good for math demo)
