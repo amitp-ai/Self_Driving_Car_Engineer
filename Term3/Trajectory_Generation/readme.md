@@ -1,3 +1,5 @@
+http://www.v-charge.eu/wp-content/uploads/2014/07/summer_school_motion_planning.pdf (good survey of motion planning techniques for SDC)
+
 http://smpp.northwestern.edu/savedLiterature/Spong_Textbook.pdf (very good book)
 
 http://www.shadmehrlab.org/book/minimum_jerk/minimumjerk.htm (print this)
