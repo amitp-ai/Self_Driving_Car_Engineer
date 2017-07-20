@@ -1,4 +1,4 @@
-http://www.shadmehrlab.org/book/minimum_jerk/minimumjerk.htm
+http://www.shadmehrlab.org/book/minimum_jerk/minimumjerk.htm (print this)
 
 https://www.desmos.com/ (good for math demo)
 
