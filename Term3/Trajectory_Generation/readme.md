@@ -12,10 +12,11 @@ https://d17h27t6h515a5.cloudfront.net/topher/2017/July/595fd482_werling-optimal-
 
 
 Good references
-1a. http://citeseerx.ist.psu.edu/viewdoc/download;jsessionid=36AC83F503803ACB24DDE9602E988F37?doi=10.1.1.432.375&rep=rep1&type=pdf (good)
-1b. https://courses.cs.washington.edu/courses/cse571/16au/slides/Ferguson_et_al-2008-Journal_of_Field_Robotics.pdf (very good)
+1. http://citeseerx.ist.psu.edu/viewdoc/download;jsessionid=36AC83F503803ACB24DDE9602E988F37?doi=10.1.1.432.375&rep=rep1&type=pdf (good)
 
 2. http://cimar.mae.ufl.edu/CIMAR/pages/thesis/pasha_path_planning.pdf (good)
 
 3. http://publications.lib.chalmers.se/records/fulltext/182538/182538.pdf (very good)
+
+4. https://courses.cs.washington.edu/courses/cse571/16au/slides/Ferguson_et_al-2008-Journal_of_Field_Robotics.pdf (very good)
 
