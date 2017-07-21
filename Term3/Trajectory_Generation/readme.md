@@ -20,3 +20,4 @@ Good references
 
 4. https://courses.cs.washington.edu/courses/cse571/16au/slides/Ferguson_et_al-2008-Journal_of_Field_Robotics.pdf (very good)
 
+5. http://ri.cmu.edu/pub_files/pub4/howard_thomas_2007_1/howard_thomas_2007_1.pdf
