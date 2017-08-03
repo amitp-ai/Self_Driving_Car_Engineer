@@ -1,3 +1,6 @@
+https://www.cs.cmu.edu/~motionplanning/lecture/pivtoraiko_lecture.pptx
+http://ri.cmu.edu/pub_files/2012/2/pivtoraiko_thesis.pdf
+
 http://www.v-charge.eu/wp-content/uploads/2014/07/summer_school_motion_planning.pdf (good survey of motion planning techniques for SDC)
 
 http://smpp.northwestern.edu/savedLiterature/Spong_Textbook.pdf (very good book)
