@@ -373,11 +373,9 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
 double max_accel_for_lane(vehicle_Data &ego_car, target_Data &ego_target, vector<vector<double>> &sensor_fusion)
 {
     double delta_v_till_target = 49.0 - ego_car.speed; //in MPH per 0.02Sec
-    double max_acc = 0.0;
-    if(delta_v_till_target < ego_target.max_accel)
-        max_acc = delta_v_till_target;
-    else
-        max_acc = ego_target.max_accel;
+    double max_acc = ego_traget.max_accel; //in MPH/0.02sec
+    if(delta_v_till_target < max_acc)
+        max_acc = delta_v_till_target; //in MPH/0.02sec
 
     int closest_vehicle_infront = 0;
     double dist_to_closest_vehicle_infront = 10000; //some very large number
@@ -393,20 +391,23 @@ double max_accel_for_lane(vehicle_Data &ego_car, target_Data &ego_target, vector
             }
         }
     }
-    int temp_plan_horizon = (int) ego_target.plan_horizon * 0.1; //at 10% of plan horizon
-    //closed_car_speed is in m/s
-    double closest_car_speed = sqrt(sensor_fusion[closest_vehicle_infront][3]*sensor_fusion[closest_vehicle_infront][3] + sensor_fusion[closest_vehicle_infront][4]*sensor_fusion[closest_vehicle_infront][4]);
-    double closest_car_next_pos = sensor_fusion[closest_vehicle_infront][5] + closest_car_speed * 0.02 * temp_plan_horizon;
+    double temp_plan_horizon = (double) ego_target.plan_horizon * 0.1; //at 10% of plan horizon
+    temp_plan_horizon = temp_plan_horizon*0.02; //in seconds
+    //closest_car_speed is in m/s
+    double closest_car_speed = sqrt(sensor_fusion[closest_vehicle_infront][3]*sensor_fusion[closest_vehicle_infront][3] + sensor_fusion[closest_vehicle_infront][4]*sensor_fusion[closest_vehicle_infront][4]); //speed in m/s
+    double closest_car_next_pos = sensor_fusion[closest_vehicle_infront][5] + closest_car_speed * temp_plan_horizon; //speed is in m/s
 
-    double ego_next_pos = ego_car.s + (ego_car.speed/2.24) * 0.02 * temp_plan_horizon; //ego_car's speed is in MPH so divide by 2.24 to convert to m/s
+    double ego_next_pos = ego_car.s + (ego_car.speed/2.24) * temp_plan_horizon; //ego_car's speed is in MPH so divide by 2.24 to convert to m/s
     double separation_next = closest_car_next_pos - ego_next_pos;
     double available_room = separation_next - ego_target.preferred_buffer; //in meters
-    double available_accel = //ut-1/2at^2;
+    double available_acc = 2*available_room/(0.02*temp_plan_horizon*0.02*temp_plan_horizon); //in m/s^2 //ut+1/2at^2; //the ut component has already been addressed in speration next
+    //convert available_acc to MPH per 0.02sec
+    available_acc *= 2.24; // convert m/s/s to MPH/s
+    available_acc *= 0.02; //convert MPH/s to MPH/0.02sec
+    if available_acc < max_acc
+    	max_acc = available_acc;
 
-
-
-
-
+    return max_acc;
 }
 
 void realize_keep_lane(vehicle_Data &ego_car, target_Data &ego_target, vector<vector<double>> &sensor_fusion)
