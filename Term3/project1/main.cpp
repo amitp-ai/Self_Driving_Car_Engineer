@@ -305,30 +305,29 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
     //prev_size is our planning horizon
     int prev_size = previous_path_x.size(); //previous path can be helpful with transitions
 
-    //cost function weights
-    map<string, double> cost_func_weights;
-    cost_func_weights["collision cost"] = 100;
-    cost_func_weights["buffer cost"] = 50.1;
-    cost_func_weights["inefficiency cost"] = 10;
-    cost_func_weights["state changes"] = 100; //minimize frequent state (speed/lane) changes. It like comfort. Otherwise the car can just keep changing lanes. See the way target_lane is calculated below.
-    //cout << cost_func_weights["collision cost"] << "\t" << cost_func_weights["buffer cost"] << "\n";
-
     //figure out the list of possible next states
+    //don't allow for lane change if the resulting lane is less than 0 or more than 2. Could handle this in coft function too, but it's unnecessary as the cost of such a lane change will be extremely high (same as collision)
+    int temp_ego_lane = (int)(ego_car.d/4);
+
     vector<string> possible_states;
+    possible_states .push_back("KL");
     if (ego_car.state == "KL")
     {
-        possible_states = {"KL", "LCL", "LCR"}; //have cost be really high if violate lane
+	if(temp_ego_lane > 0)
+	    possible_states.push_back("LCL");
+	if(temp_ego_lane < 2)
+	    possible_states.push_back("LCR");        
     }
     else if (ego_car.state == "LCL")
     {
-        possible_states = {"KL", "LCL"};
+	if(temp_ego_lane > 0)
+	    possible_states.push_back("LCL");     
     }
-
     else if (ego_car.state == "LCR")
     {
-        possible_states = {"KL", "LCR"};
+	if(temp_ego_lane < 2)
+	    possible_states.push_back("LCR");     
     }
-
     else
         cout << "Invalid State\n";
 
@@ -336,15 +335,21 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
     //car_speed is the speed in s direction
     vector<vector<double>> trajectory_x;
     vector<vector<double>> trajectory_y;
-    vector<double> temp_x_vals;
-    vector<double> temp_y_vals;
+	
+    //for finding min. cost path
+    double min_cost = 1e10; //a really large number
+    int traj_min_cost;
+    string state_min_cost;
+
     for(int i=0; i<possible_states.size(); i++)
     {
         string temp_state = possible_states[i];
         vector<vector<double>> temp_sensor_fusion = sensor_fusion;
         vehicle_Data temp_ego_car = ego_car;
         target_Data temp_ego_target = ego_target;
-
+        vector<double> temp_x_vals;
+        vector<double> temp_y_vals;
+	
         if (temp_state == "KL")
         {
             realize_keep_lane(temp_ego_car, temp_ego_target, temp_sensor_fusion);
@@ -366,12 +371,93 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
         trajectory_x.push_back(temp_x_vals);
         trajectory_y.push_back(temp_y_vals);
 
-    }
+	//Note: trajectory is in x/y coordinates and not in Frenet coordinates
+        double cost_ith_traj = calculate_cost(trajectory_x, trajectory_y, sensory_fusion, temp_ego_car, temp_ego_target);
+	if (cost_ith_traj < min_cost)
+	{
+	    min_cost = cost_ith_traj;
+	    traj_min_cost = i;
+	    state_min_cost = possible_states[i];
+	}
+    {
 
+}
+
+double calculate_cost(vector<vector<double>> &trajectory_x, vector<vector<double>> &trajectory_y, vector<vector<double>> &sensor_fusion, vehicle_Data &ego_car, target_Data &ego_target)
+{
+    //cost function weights
+    map<string, double> cost_func_weights;
+    cost_func_weights["Collision"] = 1e4;
+    cost_func_weights["Danger"] = 2e3; //buffer check
+    cost_func_weights["Reach_Goal"] = 2e2; //reach s_max (make sure negative velocities are not allowed)
+    cost_func_weights["Comfort"] = 1e2; //penalizes lane changes. Otherwise the car can just keep changing lanes. See the way target_lane is calculated below.
+    //cout << cost_func_weights["collision cost"] << "\t" << cost_func_weights["buffer cost"] << "\n";
+
+    auto helper_data = get_helper_data_for_cost_func(vector<vector<double>> &trajectory_x, vector<vector<double>> &trajectory_y, vector<vector<double>> &sensor_fusion, vehicle_Data &ego_car, target_Data &ego_target);
+	
+	    
+
+}
+	    
+void get_helper_data_for_cost_func(vector<vector<double>> &trajectory_x, vector<vector<double>> &trajectory_y, vector<vector<double>> &sensor_fusion, vehicle_Data &ego_car, target_Data &ego_target)
+{
+    //From the sensorfusion variable, find the vehicles that are closest to EGO (infront and behind) in the current lane and proposed lane.
+    //so at most 4 such vehicles. Only include vehicles whose s distance is within certain threshold from Ego.
+    vector<vector<double>> relevant_sensor_fusion;
+    int temp_ego_lane = (int)(ego_car.d/4);
+    int temp_ego_tgt_lane = ego_target.lane;
+	
+    vector<int> lanes_to_check;
+    lanes_to_check.push_back(temp_ego_lane);
+    if(temp_ego_lane != temp_ego_tgt_lane)
+        lanes_to_check.push_back(temp_ego_tgt_lane);
+
+    vector<double> min_dist_front(lanes_to_check.size(), 10000); //initialize to some large value 
+    vector<int> min_dist_id_front(lanes_to_check.size(), 0);
+	
+    vector<double> min_dist_back(lanes_to_check.size(), 10000); //initialize to some large value 
+    vector<int> min_dist_id_back(lanes_to_check.size(), 0);
+	
+    for(int i=0; i<sensor_fusion.size(); i++)
+    {
+        if((sensor_fusion[i][6]-2 < temp_ego_lane) && (sensor_fusion[i][6]+2 > temp_ego_lane))
+	{
+	    
+	
+    //returns the distance to the closest approach
+    //returns the time to first collision
+    for(int i=0; i<trajectory_x.size(); i++)
+    {
+        for(int j=0; j<sensor_fusion.size(); j++)
+	{
+	    double sf_x = sensor_fusion[j][1] + sensor_fusion[j][3]*0.02*i;
+	    double sf_y = sensor_fusion[j][2] + sensor_fusion[j][4]*0.02*i;
+	    {double sf_s, double sf_d} = getFrenet(
+}
+	    
+void realize_keep_lane(vehicle_Data &ego_car, target_Data &ego_target, vector<vector<double>> &sensor_fusion)
+{
+    ego_target.lane = (int)(ego_car.d/4); //keep current lane
+    ego_target.accel = max_accel_for_lane(ego_car, ego_target, sensor_fusion);
+    //speed will be updated in the update_ego_state function.
+}
+
+void realize_lane_change(vehicle_Data &ego_car, target_Data &ego_target, vector<vector<double>> &sensor_fusion, string &str_turn)
+{
+    //this function updates the target lane and target acceleration (in MPH/0.02sec)
+    int delta = 1;
+    if(str_turn == "L")
+    	delta = -1;
+
+    ego_target.lane = (int)(ego_car.d/4) + delta; //update lane
+    ego_target.accel = max_accel_for_lane(ego_car, ego_target, sensor_fusion);
+    //eventually need to add prepare lane change state to make sure the car can change lane.
+    //speed will be updated in the update_ego_state function.
 }
 
 double max_accel_for_lane(vehicle_Data &ego_car, target_Data &ego_target, vector<vector<double>> &sensor_fusion)
 {
+    //returns max acceleration in MPH per 0.02 second
     double delta_v_till_target = 49.0 - ego_car.speed; //in MPH per 0.02Sec
     double max_acc = ego_traget.max_accel; //in MPH/0.02sec
     if(delta_v_till_target < max_acc)
@@ -407,14 +493,7 @@ double max_accel_for_lane(vehicle_Data &ego_car, target_Data &ego_target, vector
     if available_acc < max_acc
     	max_acc = available_acc;
 
-    return max_acc;
-}
-
-void realize_keep_lane(vehicle_Data &ego_car, target_Data &ego_target, vector<vector<double>> &sensor_fusion)
-{
-    ego_target.lane = (int)(ego_car.d/4);
-    ego_target.accel = max_accel_for_lane(ego_car, ego_target, sensor_fusion);
-    ego_target.speed = ego_car.state + ego_target.accel;
+    return max_acc; //MPH per 0.02sec
 }
 
 void update_ego_state(int &prev_size, vehicle_Data &ego_car, target_Data &ego_target, vector<vector<double>> &sensor_fusion, double &end_path_s, double &end_path_d, string &state)
@@ -597,7 +676,7 @@ int main() {
 
             ego_car.s = car_s;
             ego_car.d = car_d;
-            ego_car.speed = car_speed;
+            ego_car.speed = car_speed; //speed from localization data for EGO is in MPH
             ego_car.x = car_x;
             ego_car.y = car_y;
             ego_car.yaw = car_yaw;
