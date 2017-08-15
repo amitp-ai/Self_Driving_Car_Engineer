@@ -372,7 +372,7 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
         trajectory_y.push_back(temp_y_vals);
 
 	//Note: trajectory is in x/y coordinates and not in Frenet coordinates
-        double cost_ith_traj = calculate_cost(trajectory_x, trajectory_y, sensory_fusion, temp_ego_car, temp_ego_target);
+        double cost_ith_traj = calculate_cost(trajectory_x, trajectory_y, sensory_fusion, temp_ego_car, temp_ego_target, map_waypoints_x, map_waypoints_y);
 	if (cost_ith_traj < min_cost)
 	{
 	    min_cost = cost_ith_traj;
@@ -383,7 +383,7 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
 
 }
 
-double calculate_cost(vector<vector<double>> &trajectory_x, vector<vector<double>> &trajectory_y, vector<vector<double>> &sensor_fusion, vehicle_Data &ego_car, target_Data &ego_target)
+double calculate_cost(vector<vector<double>> &trajectory_x, vector<vector<double>> &trajectory_y, vector<vector<double>> &sensor_fusion, vehicle_Data &ego_car, target_Data &ego_target, vector<double> &map_waypoints_x, vector<double> &map_waypoints_y)
 {
     //cost function weights
     map<string, double> cost_func_weights;
@@ -393,14 +393,17 @@ double calculate_cost(vector<vector<double>> &trajectory_x, vector<vector<double
     cost_func_weights["Comfort"] = 1e2; //penalizes lane changes. Otherwise the car can just keep changing lanes. See the way target_lane is calculated below.
     //cout << cost_func_weights["collision cost"] << "\t" << cost_func_weights["buffer cost"] << "\n";
 
-    auto helper_data = get_helper_data_for_cost_func(vector<vector<double>> &trajectory_x, vector<vector<double>> &trajectory_y, vector<vector<double>> &sensor_fusion, vehicle_Data &ego_car, target_Data &ego_target);
+    auto helper_data = get_helper_data_for_cost_func(trajectory_x, trajectory_y, sensor_fusion, ego_car, ego_target, map_waypoints_x, map_waypoints_y);
 	
 	    
 
 }
 	    
-void get_helper_data_for_cost_func(vector<vector<double>> &trajectory_x, vector<vector<double>> &trajectory_y, vector<vector<double>> &sensor_fusion, vehicle_Data &ego_car, target_Data &ego_target)
+void get_helper_data_for_cost_func(vector<vector<double>> &trajectory_x, vector<vector<double>> &trajectory_y, vector<vector<double>> &sensor_fusion, vehicle_Data &ego_car, target_Data &ego_target, vector<double> &map_waypoints_x, vector<double> &map_waypoints_y)
 {
+    //returns the distance to the closest approach
+    //returns the time to first collision
+    /////////////////////////////////////////////////////////////////////////////////////////
     //From the sensorfusion variable, find the vehicles that are closest to EGO (infront and behind) in the current lane and proposed lane.
     //so at most 4 such vehicles. Only include vehicles whose s distance is within certain threshold from Ego.
     vector<vector<double>> relevant_sensor_fusion;
@@ -444,19 +447,78 @@ void get_helper_data_for_cost_func(vector<vector<double>> &trajectory_x, vector<
 	relevant_sensor_fusion.push_back(sensor_fusion[idx_min_dist_front[k]]);
 	relevant_sensor_fusion.push_back(sensor_fusion[idx_min_dist_back[k]]);
     }
-	    
+    /////////////////////////////////////////////////////////////////////////////////////////
 	
     //returns the distance to the closest approach
     //returns the time to first collision
-    for(int i=0; i<trajectory_x.size(); i++)
+    bool collides = false;
+    double collides_at = 10000; //a very large number
+    double closest_approach = 10000; //a very large number
+    for(int i=1; i<trajectory_x.size(); i++)
     {
         for(int j=0; j<relevant_sensor_fusion.size(); j++)
 	{
-	    double sf_x = sensor_fusion[j][1] + sensor_fusion[j][3]*0.02*i;
-	    double sf_y = sensor_fusion[j][2] + sensor_fusion[j][4]*0.02*i;
-	    {double sf_s, double sf_d} = getFrenet(
+	    double sf_theta = atan2(relevant_sensor_fusion[j][4], relevant_sensor_fusion[j][4]); //theta=atan(vy/vx)
+		
+	    double sf_x = relevant_sensor_fusion[j][1] + relevant_sensor_fusion[j][3]*0.02*i;
+	    double sf_y = relevant_sensor_fusion[j][2] + relevant_sensor_fusion[j][4]*0.02*i;
+	    vector<double> sf_now = getFrenet(sf_x, sf_y, sf_theta, map_waypoints_x, map_waypoints_y);
+		
+	    sf_x = relevant_sensor_fusion[j][1] + relevant_sensor_fusion[j][3]*0.02*(i-1);
+	    sf_y = relevant_sensor_fusion[j][2] + relevant_sensor_fusion[j][4]*0.02*(i-1);
+	    vector<double> sf_prev = getFrenet(sf_x, sf_y, sf_theta, map_waypoints_x, map_waypoints_y);
+	
+	    double temp_ego_theta = atan2(trajectory_y[i]-trajectory_y[i-1], trajectory_x[i]-trajectory_x[i-1]);
+	    vector<double> temp_ego_now = getFrenet(trajectory_x[i], trajectory_y[i], temp_ego_theta, map_waypoints_x, map_waypoints_y);
+	    vector<double> temp_ego_prev = getFrenet(trajectory_x[i-1], trajectory_y[i-1], temp_ego_theta, map_waypoints_x, map_waypoints_y); //assume theta doesn't change much with adjacent points
+		
+	    bool vehicle_collides = check_collision(temp_ego_now, temp_ego_prev, sf_now, sf_prev);
+	    if(vehicle_collides && collides == false) //save the first time stamp it collides at
+	    {
+	        collides = true;
+		collides_at = i*0.02;
+	    }
+		
+	    //check for closest approach
+	    if(fabs(temp_ego_now[0] - sf_now[0]) < closest_approach)
+	        closest_approach = temp_ego_now[0] - sf_now[0];
 }
-	    
+	   
+bool check_collision(vector<double> temp_ego_now, vector<double> temp_ego_prev, vector<double> sf_now, vector<double> sf_prev)
+{
+   if( (sf_now[1] > (temp_ego_now[1]-2) && sf_now[1] < (temp_ego_now[1]+2)) || (sf_prev[1] > (temp_ego_now[1]-2) && sf_prev[1] < (temp_ego_now[1]+2)) )
+   {
+       if(sf_prev[0] < temp_ego_now[0])
+       {
+           if(sf_now[0] >= temp_ego_now[0])
+               return true;
+           else
+               return false;
+       }
+       if(sf_prev[0] > temp_ego_now[0])
+       {
+           if(sf_now[0] <= temp_ego_now[0])
+               return true;
+           else
+               return false;
+       }   
+       if(sf_prev[0] == temp_ego_now[0])
+       {
+           if( (sf_now[0]-sf_prev[0]) < (temp_ego_now[0]-temp_ego_prev[0]) ) //if the speed of sf_car is greater than ego then its ok
+               return true;
+           else
+               return false;
+       }   
+	   
+   else
+   {
+       cout << "SOMETHING IS WRONG WITH RELEVANT_SENSOR_FUSION IN COST_FUNC_HELPER FUNCTION\n");
+	   return 1.1; //to throw an error
+   }
+}
+	   
+	   
+	   
 void realize_keep_lane(vehicle_Data &ego_car, target_Data &ego_target, vector<vector<double>> &sensor_fusion)
 {
     ego_target.lane = (int)(ego_car.d/4); //keep current lane
