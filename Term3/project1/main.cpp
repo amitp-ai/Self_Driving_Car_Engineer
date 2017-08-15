@@ -482,6 +482,8 @@ void get_helper_data_for_cost_func(vector<vector<double>> &trajectory_x, vector<
 	    //check for closest approach
 	    if(fabs(temp_ego_now[0] - sf_now[0]) < closest_approach)
 	        closest_approach = temp_ego_now[0] - sf_now[0];
+	}
+    }
 }
 	   
 bool check_collision(vector<double> temp_ego_now, vector<double> temp_ego_prev, vector<double> sf_now, vector<double> sf_prev)
