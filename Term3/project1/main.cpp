@@ -407,28 +407,50 @@ void get_helper_data_for_cost_func(vector<vector<double>> &trajectory_x, vector<
     int temp_ego_lane = (int)(ego_car.d/4);
     int temp_ego_tgt_lane = ego_target.lane;
 	
-    vector<int> lanes_to_check;
-    lanes_to_check.push_back(temp_ego_lane);
-    if(temp_ego_lane != temp_ego_tgt_lane)
-        lanes_to_check.push_back(temp_ego_tgt_lane);
+    vector<double> lanes_to_check;
+    lanes_to_check.push_back(temp_ego_lane*4.0+2);
+    if(temp_ego_lane != temp_ego_tgt_lane) //that's why kept temp_ego_lane & temp_ego_tgt_lane of type int so its more reliable to do this comparison
+        lanes_to_check.push_back(temp_ego_tgt_lane*4.0+2);
 
     vector<double> min_dist_front(lanes_to_check.size(), 10000); //initialize to some large value 
-    vector<int> min_dist_id_front(lanes_to_check.size(), 0);
+    vector<int> idx_min_dist_front(lanes_to_check.size(), 0);
 	
     vector<double> min_dist_back(lanes_to_check.size(), 10000); //initialize to some large value 
-    vector<int> min_dist_id_back(lanes_to_check.size(), 0);
+    vector<int> idx_min_dist_back(lanes_to_check.size(), 0);
 	
-    for(int i=0; i<sensor_fusion.size(); i++)
+    
+    for(int k=0; k<lanes_to_check.size(); k++)
     {
-        if((sensor_fusion[i][6]-2 < temp_ego_lane) && (sensor_fusion[i][6]+2 > temp_ego_lane))
-	{
+        for(int i=0; i<sensor_fusion.size(); i++)
+        {
+            if((sensor_fusion[i][6] > (lanes_to_check[k]-2) && (sensor_fusion[i][6] < (lanes_to_check[k]+2)))
+	    {
+		//front check
+	        if( ((sensor_fusion[i][5] - ego_car.s) >= 0) && ((sensor_fusion[i][5] - ego_car.s) < min_dist_front[k]) )
+	        {
+	            min_dist_front[k] = sensor_fusion[i][5] - ego_car.s; //in meters
+		    idx_min_dist_front[k] = i;
+	        }
+
+		//back check
+	        if( ((ego_car.s - sensor_fusion[i][5]) >= 0) && ((ego_car.s - sensor_fusion[i][5]) < min_dist_back[k]) )
+	        {
+	            min_dist_back[k] = ego_car.s - sensor_fusion[i][5]; //in meters
+		    idx_min_dist_back[k] = i;
+	        }
+	    }  
+	}
+	//for each lane to check, add the closest car infront and back of EGO
+	relevant_sensor_fusion.push_back(sensor_fusion[idx_min_dist_front[k]]);
+	relevant_sensor_fusion.push_back(sensor_fusion[idx_min_dist_back[k]]);
+    }
 	    
 	
     //returns the distance to the closest approach
     //returns the time to first collision
     for(int i=0; i<trajectory_x.size(); i++)
     {
-        for(int j=0; j<sensor_fusion.size(); j++)
+        for(int j=0; j<relevant_sensor_fusion.size(); j++)
 	{
 	    double sf_x = sensor_fusion[j][1] + sensor_fusion[j][3]*0.02*i;
 	    double sf_y = sensor_fusion[j][2] + sensor_fusion[j][4]*0.02*i;
