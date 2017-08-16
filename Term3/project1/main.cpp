@@ -624,7 +624,7 @@ vector<vector<double>> max_accel_for_lane_change(vehicle_Data &ego_car, target_D
 	min_acc = available_acc; //MPH per 0.02sec
     }
 	
-    cout << max_acc << "\t" << dist_to_closest_vehicle_infront << min_acc << "\t" << dist_to_closest_vehicle_back << "\n";
+    cout << max_acc << "\t" << dist_to_closest_vehicle_infront <<"\t" << min_acc << "\t" << dist_to_closest_vehicle_back << "\n";
 
     vector<vector<double>> rtn_var;
     rtn_var.push_back({max_acc, dist_to_closest_vehicle_infront});
