@@ -470,7 +470,7 @@ double calculate_cost(vehicle_Data &ego_car, target_Data &ego_target, double &mi
 vector<double> max_accel_for_keep_lane(vehicle_Data &ego_car, target_Data &ego_target, vector<vector<double>> &sensor_fusion)
 {
     //returns max acceleration in MPH per 0.02 second
-    //also returns the cost of this operation
+    //also returns the distance to the closest vehicle in front
     int closest_vehicle_infront = 0;
     double dist_to_closest_vehicle_infront = 10000; //some very large number
     for(int i=0; i<sensor_fusion.size(); i++)
@@ -478,7 +478,7 @@ vector<double> max_accel_for_keep_lane(vehicle_Data &ego_car, target_Data &ego_t
         double d = sensor_fusion[i][6];
         if(ego_car.d > (d-2) && ego_car.d < (d+2))
         {
-            if((sensor_fusion[i][5] > ego_car.s) && ((sensor_fusion[i][5] - ego_car.s) < dist_to_closest_vehicle_infront))
+            if((sensor_fusion[i][5] >= ego_car.s) && ((sensor_fusion[i][5] - ego_car.s) < dist_to_closest_vehicle_infront))
             {
                 dist_to_closest_vehicle_infront = sensor_fusion[i][5] - ego_car.s;
                 closest_vehicle_infront = i;
@@ -512,7 +512,7 @@ vector<double> max_accel_for_keep_lane(vehicle_Data &ego_car, target_Data &ego_t
         available_acc *= 2.24; // convert m/s/s to MPH/s
         available_acc *= 0.02; //convert MPH/s to MPH/0.02sec
 
-        //ignores max_acc from above
+        //updates max_acc using value from above
         if(available_acc > 0 && available_acc < max_acc)
         {
             max_acc = available_acc;
@@ -530,74 +530,43 @@ vector<double> max_accel_for_keep_lane(vehicle_Data &ego_car, target_Data &ego_t
     return {max_acc, dist_to_closest_vehicle_infront}; //max_acc is in MPH per 0.02sec
 }
 
-vector<double> max_accel_for_lane_change(vehicle_Data &ego_car, target_Data &ego_target, vector<vector<double>> &sensor_fusion)
+vector<vector<double>> max_accel_for_lane_change(vehicle_Data &ego_car, target_Data &ego_target, vector<vector<double>> &sensor_fusion)
 {
-    //returns max acceleration in MPH per 0.02 second
-
-
-    //relevant sensorfusion is a list of closest cars infront and back of the current lane and of the target lane
-    //so it has a maximum size of 4 cars
-    //From the sensorfusion variable, find the vehicles that are closest to EGO (infront and behind) in the current lane and proposed lane.
-    //so at most 4 such vehicles. Only include vehicles whose s distance is within certain threshold from Ego.
-    vector<vector<double>> relevant_sensor_fusion;
-    int temp_ego_lane = (int)(ego_car.d/4); //casting to int truncates the decimals (i.e. truncates towards zero, i.e. floors positive numbers and ceils negative numbers)
-    int temp_ego_tgt_lane = ego_target.lane;
-
-    vector<double> lanes_to_check;
-    lanes_to_check.push_back(temp_ego_lane*4.0+2);
-    lanes_to_check.push_back(temp_ego_tgt_lane*4.0+2);
-
-    vector<double> min_dist_front(lanes_to_check.size(), 10000); //initialize to some large value
-    vector<int> idx_min_dist_front(lanes_to_check.size(), 0);
-
-    vector<double> min_dist_back(lanes_to_check.size(), 10000); //initialize to some large value
-    vector<int> idx_min_dist_back(lanes_to_check.size(), 0);
-
-    for(int k=0; k<lanes_to_check.size(); k++)
+    //returns max acceleration in MPH per 0.02 second and min accelaration in MPH per 0.02sec
+    //also returns the distance to the closest vehicle in the front and back of the target lane from the EGO Car
+    int closest_vehicle_infront = 0;
+    double dist_to_closest_vehicle_infront = 10000; //some very large number
+    int closest_vehicle_back = 0;
+    double dist_to_closest_vehicle_back = 10000; //some very large number
+    for(int i=0; i<sensor_fusion.size(); i++)
     {
-        for(int i=0; i<sensor_fusion.size(); i++)
+        double d = sensor_fusion[i][6];
+        if(ego_car.d > (d-2) && ego_car.d < (d+2))
         {
-            if((sensor_fusion[i][6] > (lanes_to_check[k]-2)) && (sensor_fusion[i][6] < (lanes_to_check[k]+2)))
+	    //closest front vehicle
+            if((sensor_fusion[i][5] >= ego_car.s) && ((sensor_fusion[i][5] - ego_car.s) < dist_to_closest_vehicle_infront))
             {
-                //front check
-                if( ((sensor_fusion[i][5] - ego_car.s) >= 0) && ((sensor_fusion[i][5] - ego_car.s) < min_dist_front[k]) )
-                {
-                    min_dist_front[k] = sensor_fusion[i][5] - ego_car.s; //in meters
-                    idx_min_dist_front[k] = i;
-                }
-
-                //back check
-                if( ((ego_car.s - sensor_fusion[i][5]) > 0) && ((ego_car.s - sensor_fusion[i][5]) < min_dist_back[k]) )
-                {
-                    min_dist_back[k] = ego_car.s - sensor_fusion[i][5]; //in meters
-                    idx_min_dist_back[k] = i;
-                }
+                dist_to_closest_vehicle_infront = sensor_fusion[i][5] - ego_car.s;
+                closest_vehicle_infront = i;
+            }
+	    //closest back vehicle
+            if((ego_car.s > sensor_fusion[i][5]) && ((ego_car.s - sensor_fusion[i][5]) < dist_to_closest_vehicle_back))
+            {
+                dist_to_closest_vehicle_back = ego_car.s - sensor_fusion[i][5];
+                closest_vehicle_back = i;
             }
         }
-        //for each lane to check, add the closest car infront and back of EGO
-        if(min_dist_front[k] < 10000)
-        {
-            relevant_sensor_fusion.push_back(sensor_fusion[idx_min_dist_front[k]]);
-        }
-        if(min_dist_back[k] < 10000)
-        {
-            relevant_sensor_fusion.push_back(sensor_fusion[idx_min_dist_back[k]]);
-        }
     }
-    //min_dist_front[k] and min_dist_back[k] has the distance to the closest vehicle in the kth lane
 
-
-	
-	
     double temp_plan_horizon = (double) ego_target.plan_horizon * 0.2; //at 20% of plan horizon
     temp_plan_horizon = temp_plan_horizon*0.02; //in seconds
-
+	
+    //find the max. acceleration
     //delta_v_till_target in the temp_plan_horizon time frame
-    double delta_v_till_target = (ego_target.max_speed - ego_car.speed)/temp_plan_horizon*0.02; //in MPH per 0.02Sec
     double max_acc = ego_target.max_accel; //in MPH/0.02sec
+    double delta_v_till_target = (ego_target.max_speed - ego_car.speed)/temp_plan_horizon*0.02; //in MPH per 0.02Sec
     if(delta_v_till_target > 0 && delta_v_till_target < max_acc)
         max_acc = delta_v_till_target; //in MPH/0.02sec
-
     if(dist_to_closest_vehicle_infront < 10000)
     {
         //closest_car_speed is in m/s
@@ -615,7 +584,6 @@ vector<double> max_accel_for_lane_change(vehicle_Data &ego_car, target_Data &ego
         available_acc *= 2.24; // convert m/s/s to MPH/s
         available_acc *= 0.02; //convert MPH/s to MPH/0.02sec
 
-        //ignores max_acc from above
         if(available_acc > 0 && available_acc < max_acc)
         {
             max_acc = available_acc;
@@ -628,9 +596,42 @@ vector<double> max_accel_for_lane_change(vehicle_Data &ego_car, target_Data &ego
                 max_acc = -ego_target.max_accel*2;
         }
     }
+	
+    //find the min. acceleration
+    double back_temp_plan_horizon = temp_plan_horizon * 0.5; //this needs to be on a shorter time frame than front planning
+    double back_preffered_buffer = ego_target.preferred_buffer/2; //can be a bit more aggressive on buffer than for front gap/buffer
+    double min_acc = 0.0; //in MPH/0.02sec
+    if(dist_to_closest_vehicle_back < 10000)
+    {
+        //closest_car_speed is in m/s
+        double vx = sensor_fusion[closest_vehicle_back][3];
+        double vy = sensor_fusion[closest_vehicle_back][4];
+        double closest_car_speed = sqrt(vx*vx+vy*vy); //in m/s
+        double closest_car_next_pos = sensor_fusion[closest_vehicle_back][5];
+        closest_car_next_pos += closest_car_speed * back_temp_plan_horizon; //this is in meters
 
-    cout << max_acc << "\t" << ego_car.speed << "\t" << dist_to_closest_vehicle_infront << "\n" ;
-    return {max_acc, dist_to_closest_vehicle_infront}; //max_acc is in MPH per 0.02sec
+        double ego_next_pos = ego_car.s + (ego_car.speed/2.24) * back_temp_plan_horizon; //ego_car's speed is in MPH so divide by 2.24 to convert to m/s
+        double separation_next = ego_next_pos - closest_car_next_pos; //in meters
+	double available_room = back_preffered_buffer - separation_next; //in meters
+	//if separation_next is much larger than back_preffered_buffer, then available_acc will be a very large negative number
+	//if separation_next is equal to back_preffered_buffer, then available_acc will be 0
+	//if separation_next is less than back_preffered_buffer, then available_acc will be a positive number
+        double available_acc = 2*available_room/(back_temp_plan_horizon*back_temp_plan_horizon); //in m/s^2 //ut+1/2at^2; //the ut component has already been addressed in speration next
+        //convert available_acc to MPH per 0.02sec
+        available_acc *= 2.24; // convert m/s/s to MPH/s
+        available_acc *= 0.02; //convert MPH/s to MPH/0.02sec
+	
+	min_acc = available_acc; //MPH per 0.02sec
+    }
+	
+    cout << max_acc << "\t" << dist_to_closest_vehicle_infront << min_acc << "\t" << dist_to_closest_vehicle_back << "\n";
+
+    vector<vector<double>> rtn_var;
+    rtn_var.push_back({max_acc, dist_to_closest_vehicle_infront});
+    rtn_var.push_back({min_acc, dist_to_closest_vehicle_back});
+	
+    //min_acc & max_acc are in MPH per 0.02sec and dist_to_closest_vehicle_back & dist_to_closest_vehicle_infront are in meters (Frenet s axis)
+    return rtn_var;
 }
 
 void ego_target_speed_validation(target_Data &ego_target)
@@ -670,7 +671,14 @@ double realize_lane_change(vehicle_Data &ego_car, target_Data &ego_target, vecto
     	delta = -1;
 
     ego_target.lane = (int)(ego_car.d/4) + delta; //update lane
-    ego_target.accel = max_accel_for_lane_change(ego_car, ego_target, sensor_fusion);
+	temp_ego_car = ego_car;
+	temp_ego_target = ego_target;
+	max_accel_for_keep_lane(temp_ego_car, temp_ego_target, sensor_fusion);
+	//reinitialize these variables;
+	temp_ego_car = ego_car;
+	temp_ego_target = ego_target;
+	temp_ego_car.d = ego_target.lane*4 + 2; //teleport the car into the target lane, with everything else staying as is.
+    	ego_target.accel = max_accel_for_lane_change(temp_ego_car, temp_ego_target, sensor_fusion);
     //eventually need to add prepare lane change state to make sure the car can change lane.
     //speed will be updated in the update_ego_state function.
     ego_target.speed += ego_target.accel;
