@@ -300,173 +300,6 @@ void generate_Trajectory(vector<double> &next_x_vals, vector<double> &next_y_val
     }
 }
 
-
-//bool check_collision(vector<double> &temp_ego_now, vector<double> &temp_ego_prev, vector<double> &sf_now, vector<double> &sf_prev)
-//{
-//   if( (sf_now[1] > (temp_ego_now[1]-2) && sf_now[1] < (temp_ego_now[1]+2)) || (sf_prev[1] > (temp_ego_now[1]-2) && sf_prev[1] < (temp_ego_now[1]+2)) )
-//   {
-//       if(sf_prev[0] < temp_ego_now[0])
-//       {
-//           if(sf_now[0] >= temp_ego_now[0])
-//               return true;
-//           else
-//               return false;
-//       }
-//       if(sf_prev[0] > temp_ego_now[0])
-//       {
-//           if(sf_now[0] <= temp_ego_now[0])
-//               return true;
-//           else
-//               return false;
-//       }
-//       if(sf_prev[0] == temp_ego_now[0])
-//       {
-//           if( (sf_now[0]-sf_prev[0]) < (temp_ego_now[0]-temp_ego_prev[0]) ) //if the speed of sf_car is greater than ego then its ok
-//               return true;
-//           else
-//               return false;
-//       }
-//   }
-//
-//   else
-//   {
-//       cout << "SOMETHING IS WRONG WITH RELEVANT_SENSOR_FUSION IN COST_FUNC_HELPER FUNCTION\n";
-//       cout << sf_now[1] << "\t" << temp_ego_now[1] << "\t" << sf_prev[1] << "\n";
-//	   return 1.1; //to throw an error
-//   }
-//}
-
-//vector<double> get_helper_data_for_cost_func(vector<double> &trajectory_x, vector<double> &trajectory_y, vector<vector<double>> &sensor_fusion, vehicle_Data &ego_car, target_Data &ego_target, vector<double> &map_waypoints_x, vector<double> &map_waypoints_y)
-//{
-//    //returns the distance to the closest approach
-//    //returns the time to first collision
-//    /////////////////////////////////////////////////////////////////////////////////////////
-//    //From the sensorfusion variable, find the vehicles that are closest to EGO (infront and behind) in the current lane and proposed lane.
-//    //so at most 4 such vehicles. Only include vehicles whose s distance is within certain threshold from Ego.
-//    vector<vector<double>> relevant_sensor_fusion;
-//    int temp_ego_lane = (int)(ego_car.d/4);
-//    int temp_ego_tgt_lane = ego_target.lane;
-//
-//    vector<double> lanes_to_check;
-//    lanes_to_check.push_back(temp_ego_lane*4.0+2);
-//    if(temp_ego_lane != temp_ego_tgt_lane) //that's why kept temp_ego_lane & temp_ego_tgt_lane of type int so its more reliable to do this comparison
-//        lanes_to_check.push_back(temp_ego_tgt_lane*4.0+2);
-//
-//    vector<double> min_dist_front(lanes_to_check.size(), 10000); //initialize to some large value
-//    vector<int> idx_min_dist_front(lanes_to_check.size(), 0);
-//
-//    vector<double> min_dist_back(lanes_to_check.size(), 10000); //initialize to some large value
-//    vector<int> idx_min_dist_back(lanes_to_check.size(), 0);
-//
-//
-//    cout << lanes_to_check.size() << "\n\n\n" << endl;
-//
-//    for(int k=0; k<lanes_to_check.size(); k++)
-//    {
-//        for(int i=0; i<sensor_fusion.size(); i++)
-//        {
-//            if((sensor_fusion[i][6] > (lanes_to_check[k]-2)) && (sensor_fusion[i][6] < (lanes_to_check[k]+2)))
-//            {
-//                //front check
-//                if( ((sensor_fusion[i][5] - ego_car.s) >= 0) && ((sensor_fusion[i][5] - ego_car.s) < min_dist_front[k]) )
-//                {
-//                    min_dist_front[k] = sensor_fusion[i][5] - ego_car.s; //in meters
-//                    idx_min_dist_front[k] = i;
-//                }
-//
-//                //back check
-//                if( ((ego_car.s - sensor_fusion[i][5]) >= 0) && ((ego_car.s - sensor_fusion[i][5]) < min_dist_back[k]) )
-//                {
-//                    min_dist_back[k] = ego_car.s - sensor_fusion[i][5]; //in meters
-//                    idx_min_dist_back[k] = i;
-//                }
-//            }
-//        }
-//        //for each lane to check, add the closest car infront and back of EGO
-//        if(min_dist_front[k] < 10000)
-//        {
-//            relevant_sensor_fusion.push_back(sensor_fusion[idx_min_dist_front[k]]);
-//        }
-//        if(min_dist_back[k] < 10000)
-//        {
-//            relevant_sensor_fusion.push_back(sensor_fusion[idx_min_dist_back[k]]);
-//        }
-//    }
-//    /////////////////////////////////////////////////////////////////////////////////////////
-//
-//
-//    //returns the distance to the closest approach
-//    //returns the time to first collision
-//    bool collides = false;
-//    double collides_at = 10000; //a very large number
-//    double closest_approach = 10000; //a very large number
-//    for(int i=1; i<trajectory_x.size(); i++)
-//    {
-//        for(int j=0; j<relevant_sensor_fusion.size(); j++)
-//        {
-//            double sf_theta = atan2(relevant_sensor_fusion[j][4], relevant_sensor_fusion[j][4]); //theta=atan(vy/vx)
-//
-//            double sf_x = relevant_sensor_fusion[j][1] + relevant_sensor_fusion[j][3]*0.02*i;
-//            double sf_y = relevant_sensor_fusion[j][2] + relevant_sensor_fusion[j][4]*0.02*i;
-//            vector<double> sf_now = getFrenet(sf_x, sf_y, sf_theta, map_waypoints_x, map_waypoints_y);
-//
-//            sf_x = relevant_sensor_fusion[j][1] + relevant_sensor_fusion[j][3]*0.02*(i-1);
-//            sf_y = relevant_sensor_fusion[j][2] + relevant_sensor_fusion[j][4]*0.02*(i-1);
-//            vector<double> sf_prev = getFrenet(sf_x, sf_y, sf_theta, map_waypoints_x, map_waypoints_y);
-//
-//            double temp_ego_theta = atan2(trajectory_y[i]-trajectory_y[i-1], trajectory_x[i]-trajectory_x[i-1]);
-//            vector<double> temp_ego_now = getFrenet(trajectory_x[i], trajectory_y[i], temp_ego_theta, map_waypoints_x, map_waypoints_y);
-//            vector<double> temp_ego_prev = getFrenet(trajectory_x[i-1], trajectory_y[i-1], temp_ego_theta, map_waypoints_x, map_waypoints_y); //assume theta doesn't change much with adjacent points
-//
-//            bool vehicle_collides = check_collision(temp_ego_now, temp_ego_prev, sf_now, sf_prev);
-//            if(vehicle_collides && collides == false) //save the first time stamp it collides at
-//            {
-//                collides = true;
-//                collides_at = i*0.02;
-//            }
-//
-//            //check for closest approach
-//            if(fabs(temp_ego_now[0] - sf_now[0]) < closest_approach)
-//                closest_approach = temp_ego_now[0] - sf_now[0];
-//        }
-//    }
-//
-//    return {collides_at, closest_approach}; //if collides_at is too large then it means no collision
-//}
-
-double calculate_cost(vehicle_Data &ego_car, target_Data &ego_target, double &min_separation_dist_front)
-{
-    //cost function weights
-    map<string, double> cost_func_weights;
-    cost_func_weights["Collision"] = 5e3;
-    //cost_func_weights["Danger"] = 2e3; //buffer check
-    cost_func_weights["Reach_Goal"] = 3e2; //reach s_max (make sure negative velocities are not allowed)
-    cost_func_weights["Comfort"] = 1e2; //penalizes lane changes. Otherwise the car can just keep changing lanes. See the way target_lane is calculated below.
-    //cout << cost_func_weights["collision cost"] << "\t" << cost_func_weights["buffer cost"] << "\n";
-
-    //Note: all the costs are from the standpoint of changing lanes, wont help much interms of speed in a given.
-    //Collision and Danger Cost
-    double collision_cost;
-    if(min_separation_dist_front < 10)
-        collision_cost = exp(-min_separation_dist_front);
-    else
-        collision_cost = exp(-min_separation_dist_front*3);
-
-    //Reach Goal Cost
-    //this is not necessary as max_accel_in_lane takes care of it
-    //double reach_goal_cost = 1 - exp(-(ego_target.max_speed - ego_target.speed));
-
-    //Comfort Cost
-    double comfort_cost = 1 - exp(-2*abs(ego_car.s - (ego_target.lane*4+2)));
-
-    //total cost
-    double tot_cost = cost_func_weights["collision"]*collision_cost + cost_func_weights["Comfort"]*comfort_cost;
-
-    return tot_cost;
-
-}
-
-
 vector<double> max_accel_for_keep_lane(vehicle_Data &ego_car, target_Data &ego_target, vector<vector<double>> &sensor_fusion)
 {
     //returns max acceleration in MPH per 0.02 second
@@ -596,6 +429,10 @@ vector<vector<double>> max_accel_for_lane_change(vehicle_Data &ego_car, target_D
                 max_acc = -ego_target.max_accel*2;
         }
     }
+    else
+    {
+        max_acc = 10; //some pretty large number
+    }
 	
     //find the min. acceleration
     double back_temp_plan_horizon = temp_plan_horizon * 0.5; //this needs to be on a shorter time frame than front planning
@@ -623,10 +460,15 @@ vector<vector<double>> max_accel_for_lane_change(vehicle_Data &ego_car, target_D
 	
 	min_acc = available_acc; //MPH per 0.02sec
     }
+    else
+    {
+        min_acc = -10; //some pretty small number (large negative number)
+    }
 	
     cout << max_acc << "\t" << dist_to_closest_vehicle_infront <<"\t" << min_acc << "\t" << dist_to_closest_vehicle_back << "\n";
 
     vector<vector<double>> rtn_var;
+    if(dist_to_closest_vehicle_infront == 
     rtn_var.push_back({max_acc, dist_to_closest_vehicle_infront});
     rtn_var.push_back({min_acc, dist_to_closest_vehicle_back});
 	
@@ -648,19 +490,95 @@ void ego_target_speed_validation(target_Data &ego_target)
     }
 }
 
+
+//Global constant: cost function weights
+map<string, double> cost_func_weights;
+cost_func_weights["Collision"] = 5e3;
+//cost_func_weights["Danger"] = 2e3; //buffer check
+cost_func_weights["Reach_Goal"] = 3e2; //reach s_max (make sure negative velocities are not allowed)
+cost_func_weights["Comfort"] = 1e2; //penalizes lane changes. Otherwise the car can just keep changing lanes. See the way target_lane is calculated below.
+
+double calculate_cost_keep_lane(vehicle_Data &ego_car, target_Data &ego_target, double &min_separation_dist_front)
+{
+    //cout << cost_func_weights["collision cost"] << "\t" << cost_func_weights["buffer cost"] << "\n";
+
+    //Note: all the costs are from the standpoint of staying in lane or changing lanes, wont help much interms of speed in a given lane. That's handled in the max_accel_in_lane function
+    //Collision and Danger Cost
+    double collision_cost;
+    if(min_separation_dist_front < 10)
+        collision_cost = exp(-min_separation_dist_front);
+    else
+        collision_cost = exp(-min_separation_dist_front*3);
+
+    //Reach Goal Cost
+    //this is not necessary as max_accel_in_lane takes care of it
+    //double reach_goal_cost = 1 - exp(-(ego_target.max_speed - ego_target.speed));
+
+    //Comfort Cost
+    double comfort_cost = 1 - exp(-2*abs(ego_car.d - (ego_target.lane*4+2)));
+
+    //total cost
+    double tot_cost = cost_func_weights["collision"]*collision_cost + cost_func_weights["Comfort"]*comfort_cost;
+
+    return tot_cost;
+
+}
+
 double realize_keep_lane(vehicle_Data &ego_car, target_Data &ego_target, vector<vector<double>> &sensor_fusion)
 {
     ego_target.lane = (int)(ego_car.d/4); //keep current lane
     vector<double> temp_vec = max_accel_for_keep_lane(ego_car, ego_target, sensor_fusion);
     ego_target.accel = temp_vec[0];
-    //speed will be updated in the update_ego_state function.
+
     ego_target.speed += ego_target.accel;
     ego_target_speed_validation(ego_target);
 
     double min_separation_dist = temp_vec[1]; //this is in meters (distance along Frenet s axis)
-    double tot_cost = calculate_cost(ego_car, ego_target, min_separation_dist);
+    double tot_cost = calculate_cost_keep_lane(ego_car, ego_target, min_separation_dist);
 
     return tot_cost;
+}
+
+double calculate_cost_lane_change(vector<double> &output_KL, vector<vector<double>> &output_LC, vehicle_Data &ego_car, target_Data &ego_target)
+{
+    //cout << cost_func_weights["collision cost"] << "\t" << cost_func_weights["buffer cost"] << "\n";
+
+    //Note: all the costs are from the standpoint of staying in lane or changing lanes, wont help much interms of speed in a given lane. That's handled in the max_accel_in_lane function
+    //Collision and Danger Cost
+
+    double KL_max_acc = output_KL[0][0];
+    double KL_dist_closest_front = output_KL[0][1];
+
+    double LC_max_acc = output_LC[0][0];
+    double LC_dist_closest_front = output_LC[0][1];
+    double LC_min_acc = output_LC[1][0];
+    double LC_dist_closest_back = output_LC[1][1];
+
+    double collision_cost=0;
+    //for back
+    //if(LC_min_acc > KL_max_acc) //check if I should use this instead of distance
+    if(LC_dist_closest_back < 15)
+        collision_cost = exp(-LC_dist_closest_back);
+    else
+        collision_cost = exp(-LC_dist_closest_back*3);
+    //for front
+    if(LC_dist_closest_front < 30)
+        collision_cost = collision_cost + exp(-LC_dist_closest_front);
+    else
+        collision_cost = collision_cost + exp(-LC_dist_closest_front*3);	    
+
+    //Reach Goal Cost
+    //this is not necessary as max_accel_in_lane takes care of it
+    //double reach_goal_cost = 1 - exp(-(ego_target.max_speed - ego_target.speed));
+
+    //Comfort Cost
+    double comfort_cost = 1 - exp(-2*abs(ego_car.d - (ego_target.lane*4+2)));
+
+    //total cost
+    double tot_cost = cost_func_weights["collision"]*collision_cost + cost_func_weights["Comfort"]*comfort_cost;
+
+    return tot_cost;
+
 }
 
 double realize_lane_change(vehicle_Data &ego_car, target_Data &ego_target, vector<vector<double>> &sensor_fusion, string str_turn)
@@ -669,22 +587,31 @@ double realize_lane_change(vehicle_Data &ego_car, target_Data &ego_target, vecto
     int delta = 1;
     if(str_turn == "L")
     	delta = -1;
-
-    ego_target.lane = (int)(ego_car.d/4) + delta; //update lane
-	temp_ego_car = ego_car;
-	temp_ego_target = ego_target;
-	max_accel_for_keep_lane(temp_ego_car, temp_ego_target, sensor_fusion);
-	//reinitialize these variables;
-	temp_ego_car = ego_car;
-	temp_ego_target = ego_target;
-	temp_ego_car.d = ego_target.lane*4 + 2; //teleport the car into the target lane, with everything else staying as is.
-    	ego_target.accel = max_accel_for_lane_change(temp_ego_car, temp_ego_target, sensor_fusion);
+	
+    //keep current lane
+    vehicle_Data temp_ego_car = ego_car;
+    target_Data temp_ego_target = ego_target;
+    vector<double> output_KL = max_accel_for_keep_lane(temp_ego_car, temp_ego_target, sensor_fusion);
+	
+    //change lanes
+    //reinitialize these variables;
+    temp_ego_car = ego_car;
+    temp_ego_target = ego_target;
+    temp_ego_car.d = ego_target.lane*4 + 2; //teleport the car into the target lane, with everything else staying as is.
+    vector<double> output_LC = max_accel_for_lane_change(temp_ego_car, temp_ego_target, sensor_fusion);
     //eventually need to add prepare lane change state to make sure the car can change lane.
-    //speed will be updated in the update_ego_state function.
+	
+    //update target lane and speed/accel
+    ego_target.lane = (int)(ego_car.d/4) + delta; //change lane
+	
+    ego_target.accel = output_LC[0][0]; //update accel
     ego_target.speed += ego_target.accel;
     ego_target_speed_validation(ego_target);
-
-    return 100000;
+	
+    //calculate the cost of lane change	
+    double LC_cost = calculate_cost_lane_change(output_KL, output_LC, ego_car, ego_target);
+	
+    return LC_cost;
 
 }
 
