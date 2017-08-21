@@ -163,7 +163,9 @@ vector<double> getXY(double s, double d, vector<double> maps_s, vector<double> m
 
 struct vehicle_Data
 {
-    double x, y, yaw, s, d, speed, accel;
+    double x, y, yaw, s, d, speed;
+    double prev_d=0.0; //initialized to 0
+    string prev_decision = "KL";
     string state;
 };
 
@@ -172,9 +174,9 @@ struct target_Data
     double speed, accel;
     int lane;
     double max_speed = 49.0; //MPH
-    double max_accel = 0.224*2; //MPH per (0.02second). //0.224 MPH/(0.02SEC) = 11MPH/SEC = 5m/s^2. This is acceleration
+    double max_accel = 0.224*10; //*2; //MPH per (0.02second). //0.224 MPH/(0.02SEC) = 11MPH/SEC = 5m/s^2. This is acceleration
     int plan_horizon = 50; //number of points to plan ahead every iteration
-    double preferred_buffer = 40; //30 meters //0.1*1.61*1000; //in meters (0.1Miles * 1600m/miles)
+    double preferred_buffer = 30; //30 meters //0.1*1.61*1000; //in meters (0.1Miles * 1600m/miles)
 };
 
 void generate_Trajectory(vector<double> &next_x_vals, vector<double> &next_y_vals, vehicle_Data &ego_car, vector<double> &previous_path_x, vector<double> &previous_path_y, target_Data &ego_target, vector<double> &map_waypoints_x, vector<double> &map_waypoints_y, vector<double> &map_waypoints_s)
@@ -227,9 +229,13 @@ void generate_Trajectory(vector<double> &next_x_vals, vector<double> &next_y_val
 
     //smoothing is achieved by using the end points from previous path in addition to future points
     //In Frenet add evenly 30m spaced points ahead of the car's current location. Add three such points.
-    vector<double> next_wp0 = getXY(ego_car.s+30, (2+4*ego_target.lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-    vector<double> next_wp1 = getXY(ego_car.s+60, (2+4*ego_target.lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-    vector<double> next_wp2 = getXY(ego_car.s+90, (2+4*ego_target.lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+    double delta_s = ego_car.speed/2.24*2.5; //2.24 to convert MPH to m/s and 2.5 is seconds.
+    if (delta_s < 30)
+        delta_s = 30;
+
+    vector<double> next_wp0 = getXY(ego_car.s+delta_s*1, (2+4*ego_target.lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+    vector<double> next_wp1 = getXY(ego_car.s+delta_s*2, (2+4*ego_target.lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+    vector<double> next_wp2 = getXY(ego_car.s+delta_s*3, (2+4*ego_target.lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
     ptsx.push_back(next_wp0[0]);
     ptsx.push_back(next_wp1[0]);
@@ -300,6 +306,49 @@ void generate_Trajectory(vector<double> &next_x_vals, vector<double> &next_y_val
     }
 }
 
+double validate_max_accel(double &available_acc, vehicle_Data &ego_car, target_Data &ego_target, double &temp_plan_horizon)
+{
+    //delta_v_till_target in the temp_plan_horizon time frame
+    double delta_v_till_target = (ego_target.max_speed - ego_car.speed)/temp_plan_horizon*0.02; //in MPH per 0.02Sec
+    double max_acc; //in MPH/0.02sec
+    if(available_acc < delta_v_till_target)
+        max_acc = available_acc;
+    else
+        max_acc = delta_v_till_target;
+
+    if(max_acc < 0)
+    {
+        double min_acc_allowed = 0.25*ego_target.max_accel;
+        max_acc = max_acc * (1 + exp(max_acc - min_acc_allowed)); //smooth function to minimize jerk
+    }
+    else if(max_acc > 0)
+    {
+        max_acc *= 2; //effectively reduces planning horizon by sqrt(3) while maintaining the benefit of longer horizon (i.e more realistic and smoother acceleration)
+        if(max_acc > ego_target.max_accel)
+        {
+            max_acc = ego_target.max_accel;
+        }
+    }
+
+    return max_acc;
+}
+
+double validate_min_accel(double &available_acc, target_Data &ego_target)
+{
+    double min_acc;
+    if(available_acc <= 0)
+        min_acc = 0.0; //lowest possible min_accel in forward direction
+    else //i.e. if greater than 0
+    {
+        if(available_acc > ego_target.max_accel)
+            min_acc = ego_target.max_accel;
+        else
+            min_acc = available_acc;
+    }
+
+    return min_acc;
+}
+
 vector<double> max_accel_for_keep_lane(vehicle_Data &ego_car, target_Data &ego_target, vector<vector<double>> &sensor_fusion)
 {
     //returns max acceleration in MPH per 0.02 second
@@ -309,24 +358,19 @@ vector<double> max_accel_for_keep_lane(vehicle_Data &ego_car, target_Data &ego_t
     for(int i=0; i<sensor_fusion.size(); i++)
     {
         double d = sensor_fusion[i][6];
-        if(ego_car.d > (d-2) && ego_car.d < (d+2))
+        if(ego_car.d > (d-2.5) && ego_car.d < (d+2.5))
         {
             if((sensor_fusion[i][5] >= ego_car.s) && ((sensor_fusion[i][5] - ego_car.s) < dist_to_closest_vehicle_infront))
             {
-                dist_to_closest_vehicle_infront = sensor_fusion[i][5] - ego_car.s;
+                dist_to_closest_vehicle_infront = sensor_fusion[i][5] - ego_car.s; //in meters
                 closest_vehicle_infront = i;
             }
         }
     }
 
-    double temp_plan_horizon = (double) ego_target.plan_horizon * 0.3; //at 20% of plan horizon
-    temp_plan_horizon = temp_plan_horizon*0.02; //in seconds
-
-    //delta_v_till_target in the temp_plan_horizon time frame
-    double delta_v_till_target = (ego_target.max_speed - ego_car.speed)/temp_plan_horizon*0.02; //in MPH per 0.02Sec
-    double max_acc = ego_target.max_accel; //in MPH/0.02sec
-    if(delta_v_till_target > 0 && delta_v_till_target < max_acc)
-        max_acc = delta_v_till_target; //in MPH/0.02sec
+    double temp_plan_horizon = 2.0; //1.5; //seconds
+    double available_acc = ego_target.max_accel; //the largest possible value by default
+    double separation_next_front = 10000;
 
     if(dist_to_closest_vehicle_infront < 10000)
     {
@@ -338,30 +382,22 @@ vector<double> max_accel_for_keep_lane(vehicle_Data &ego_car, target_Data &ego_t
         closest_car_next_pos += closest_car_speed * temp_plan_horizon; //this is in meters
 
         double ego_next_pos = ego_car.s + (ego_car.speed/2.24) * temp_plan_horizon; //ego_car's speed is in MPH so divide by 2.24 to convert to m/s
-        double separation_next = closest_car_next_pos - ego_next_pos; //in meters
-        double available_room = separation_next - ego_target.preferred_buffer; //in meters
-        double available_acc = 2*available_room/(temp_plan_horizon*temp_plan_horizon); //in m/s^2 //ut+1/2at^2; //the ut component has already been addressed in speration next
+        separation_next_front = closest_car_next_pos - ego_next_pos; //in meters
+        double available_room = separation_next_front - ego_target.preferred_buffer; //in meters
+        available_acc = 2*available_room/(temp_plan_horizon*temp_plan_horizon); //in m/s^2 //ut+1/2at^2; //the ut component has already been addressed in speration next
         //convert available_acc to MPH per 0.02sec
         available_acc *= 2.24; // convert m/s/s to MPH/s
         available_acc *= 0.02; //convert MPH/s to MPH/0.02sec
-
-        //updates max_acc using value from above
-        if(available_acc > 0 && available_acc < max_acc)
-        {
-            max_acc = available_acc;
-        }
-
-        else if(available_acc < 0)
-        {
-            max_acc = available_acc;
-            if(max_acc < -ego_target.max_accel*2)
-                max_acc = -ego_target.max_accel*2;
-        }
     }
+    //no need for else as the initial value of available_acc satisfies else condition
+
+    double max_acc = validate_max_accel(available_acc, ego_car, ego_target, temp_plan_horizon);
+
 
     //cout << max_acc << "\t" << ego_car.speed << "\t" << dist_to_closest_vehicle_infront << "\n" ;
-    return {max_acc, dist_to_closest_vehicle_infront}; //max_acc is in MPH per 0.02sec
+    return {max_acc, separation_next_front}; //max_acc is in MPH per 0.02sec
 }
+
 
 vector<vector<double>> max_accel_for_lane_change(vehicle_Data &ego_car, target_Data &ego_target, vector<vector<double>> &sensor_fusion)
 {
@@ -374,32 +410,27 @@ vector<vector<double>> max_accel_for_lane_change(vehicle_Data &ego_car, target_D
     for(int i=0; i<sensor_fusion.size(); i++)
     {
         double d = sensor_fusion[i][6];
-        if(ego_car.d > (d-2) && ego_car.d < (d+2))
+        if(ego_car.d > (d-2.5) && ego_car.d < (d+2.5))
         {
-	    //closest front vehicle
+            //closest front vehicle
             if((sensor_fusion[i][5] >= ego_car.s) && ((sensor_fusion[i][5] - ego_car.s) < dist_to_closest_vehicle_infront))
             {
-                dist_to_closest_vehicle_infront = sensor_fusion[i][5] - ego_car.s;
+                dist_to_closest_vehicle_infront = sensor_fusion[i][5] - ego_car.s; //in meters
                 closest_vehicle_infront = i;
             }
-	    //closest back vehicle
+            //closest back vehicle
             if((ego_car.s > sensor_fusion[i][5]) && ((ego_car.s - sensor_fusion[i][5]) < dist_to_closest_vehicle_back))
             {
-                dist_to_closest_vehicle_back = ego_car.s - sensor_fusion[i][5];
+                dist_to_closest_vehicle_back = ego_car.s - sensor_fusion[i][5]; //in meters
                 closest_vehicle_back = i;
             }
         }
     }
 
-    double temp_plan_horizon = (double) ego_target.plan_horizon * 0.3; //at 20% of plan horizon
-    temp_plan_horizon = temp_plan_horizon*0.02; //in seconds
+    double temp_plan_horizon = 2.0; //1.5; //seconds
+    double available_acc = ego_target.max_accel; //the largest possible value by default
+    double separation_next_front = 10000;
 
-    //find the max. acceleration
-    //delta_v_till_target in the temp_plan_horizon time frame
-    double max_acc = ego_target.max_accel; //in MPH/0.02sec
-    double delta_v_till_target = (ego_target.max_speed - ego_car.speed)/temp_plan_horizon*0.02; //in MPH per 0.02Sec
-    if(delta_v_till_target > 0 && delta_v_till_target < max_acc)
-        max_acc = delta_v_till_target; //in MPH/0.02sec
     if(dist_to_closest_vehicle_infront < 10000)
     {
         //closest_car_speed is in m/s
@@ -410,34 +441,24 @@ vector<vector<double>> max_accel_for_lane_change(vehicle_Data &ego_car, target_D
         closest_car_next_pos += closest_car_speed * temp_plan_horizon; //this is in meters
 
         double ego_next_pos = ego_car.s + (ego_car.speed/2.24) * temp_plan_horizon; //ego_car's speed is in MPH so divide by 2.24 to convert to m/s
-        double separation_next = closest_car_next_pos - ego_next_pos; //in meters
-        double available_room = separation_next - ego_target.preferred_buffer; //in meters
-        double available_acc = 2*available_room/(temp_plan_horizon*temp_plan_horizon); //in m/s^2 //ut+1/2at^2; //the ut component has already been addressed in speration next
+        separation_next_front = closest_car_next_pos - ego_next_pos; //in meters
+        double available_room = separation_next_front - ego_target.preferred_buffer; //in meters
+        available_acc = 2*available_room/(temp_plan_horizon*temp_plan_horizon); //in m/s^2 //ut+1/2at^2; //the ut component has already been addressed in speration next
         //convert available_acc to MPH per 0.02sec
         available_acc *= 2.24; // convert m/s/s to MPH/s
         available_acc *= 0.02; //convert MPH/s to MPH/0.02sec
-
-        if(available_acc > 0 && available_acc < max_acc)
-        {
-            max_acc = available_acc;
-        }
-
-        else if(available_acc < 0)
-        {
-            max_acc = available_acc;
-            if(max_acc < -ego_target.max_accel*2)
-                max_acc = -ego_target.max_accel*2;
-        }
     }
-    else
-    {
-        max_acc = 10; //some pretty large number
-    }
+    //no need for else as the initial value of available_acc satisfies else condition
+
+    double max_acc = validate_max_accel(available_acc, ego_car, ego_target, temp_plan_horizon);
+
 
     //find the min. acceleration
-    double back_temp_plan_horizon = temp_plan_horizon * 0.5; //this needs to be on a shorter time frame than front planning
-    double back_preffered_buffer = ego_target.preferred_buffer/2; //can be a bit more aggressive on buffer than for front gap/buffer
-    double min_acc = 0.0; //in MPH/0.02sec
+    double back_temp_plan_horizon = 1.5; //this can be on a shorter time frame than front planning
+    double back_preffered_buffer = ego_target.preferred_buffer*0.5; //can be a bit more aggressive on buffer than for front gap/buffer
+    available_acc = 0.0; //in MPH/0.02sec //lowest possible forward acceleration
+    double separation_next_back = 10000;
+
     if(dist_to_closest_vehicle_back < 10000)
     {
         //closest_car_speed is in m/s
@@ -448,28 +469,26 @@ vector<vector<double>> max_accel_for_lane_change(vehicle_Data &ego_car, target_D
         closest_car_next_pos += closest_car_speed * back_temp_plan_horizon; //this is in meters
 
         double ego_next_pos = ego_car.s + (ego_car.speed/2.24) * back_temp_plan_horizon; //ego_car's speed is in MPH so divide by 2.24 to convert to m/s
-        double separation_next = ego_next_pos - closest_car_next_pos; //in meters
-	double available_room = back_preffered_buffer - separation_next; //in meters
-	//if separation_next is much larger than back_preffered_buffer, then available_acc will be a very large negative number
-	//if separation_next is equal to back_preffered_buffer, then available_acc will be 0
-	//if separation_next is less than back_preffered_buffer, then available_acc will be a positive number
-        double available_acc = 2*available_room/(back_temp_plan_horizon*back_temp_plan_horizon); //in m/s^2 //ut+1/2at^2; //the ut component has already been addressed in speration next
+        separation_next_back = ego_next_pos - closest_car_next_pos; //in meters
+        double available_room = back_preffered_buffer - separation_next_back; //in meters
+        //if separation_next is much larger than back_preffered_buffer, then available_acc will be a very large negative number
+        //if separation_next is equal to back_preffered_buffer, then available_acc will be 0
+        //if separation_next is less than back_preffered_buffer, then available_acc will be a positive number
+        available_acc = 2*available_room/(back_temp_plan_horizon*back_temp_plan_horizon); //in m/s^2 //ut+1/2at^2; //the ut component has already been addressed in speration next
         //convert available_acc to MPH per 0.02sec
         available_acc *= 2.24; // convert m/s/s to MPH/s
         available_acc *= 0.02; //convert MPH/s to MPH/0.02sec
+    }
 
-	min_acc = available_acc; //MPH per 0.02sec
-    }
-    else
-    {
-        min_acc = -10; //some pretty small number (large negative number)
-    }
+    //no need for else as the initial value of available_acc satisfies else condition
+
+    double min_acc = validate_min_accel(available_acc, ego_target);
 
     //cout << max_acc << "\t" << dist_to_closest_vehicle_infront <<"\t" << min_acc << "\t" << dist_to_closest_vehicle_back << "\n";
 
     vector<vector<double>> rtn_var;
-    rtn_var.push_back({max_acc, dist_to_closest_vehicle_infront});
-    rtn_var.push_back({min_acc, dist_to_closest_vehicle_back});
+    rtn_var.push_back({max_acc, separation_next_front});
+    rtn_var.push_back({min_acc, separation_next_back});
 
     //min_acc & max_acc are in MPH per 0.02sec and dist_to_closest_vehicle_back & dist_to_closest_vehicle_infront are in meters (Frenet s axis)
     return rtn_var;
@@ -493,32 +512,37 @@ void ego_target_speed_validation(target_Data &ego_target)
 //Global constant: cost function weights
 struct cf_weights
 {
-    double collision = 5e4;
+    double collision = 6e4;
     //double Danger = 2e3; //buffer check
-    double reach_goal = 3e2; //reach s_max (make sure negative velocities are not allowed)
-    double comfort = 5e2; //penalizes lane changes. Otherwise the car can just keep changing lanes. See the way target_lane is calculated below.
+    double reach_goal = 1e2; //reach s_max (make sure negative velocities are not allowed)
+    double comfort = 4e4; //penalizes lane changes. Otherwise the car can just keep changing lanes. See the way target_lane is calculated below.
 };
 
 cf_weights cost_func_weights;
 
-double calculate_cost_keep_lane(vehicle_Data &ego_car, target_Data &ego_target, double &min_separation_dist_front)
+double calculate_cost_keep_lane(vehicle_Data &ego_car, target_Data &ego_target, double &min_separation_dist_front_next)
 {
     //cout << cost_func_weights["collision cost"] << "\t" << cost_func_weights["buffer cost"] << "\n";
 
     //Note: all the costs are from the standpoint of staying in lane or changing lanes, wont help much interms of speed in a given lane. That's handled in the max_accel_in_lane function
     //Collision and Danger Cost
     double collision_cost;
-    if(min_separation_dist_front < 20)
-        collision_cost = exp(-min_separation_dist_front/2);
-    else
-        collision_cost = exp(-min_separation_dist_front*3);
+    //if(min_separation_dist_front < 40)
+    //    collision_cost = exp((10-min_separation_dist_front));
+    //else
+    //    collision_cost = exp(-min_separation_dist_front*3);
+    collision_cost = exp((20-min_separation_dist_front_next/3)); //separation distance is in meters
+    //min_separation_dist_front_next/2 effectively divides the prediction horizon time by 2
 
     //Reach Goal Cost
     //this is still necessary even though max_accel_in_lane takes care of part of it. This helps pick the decision which gets us closest to goal.
-    double reach_goal_cost = exp(-(min_separation_dist_front * ego_target.accel)/10);
+    double reach_goal_cost = exp((ego_target.max_speed - (ego_car.speed+ego_target.accel*50))*0.25) - 1; //50 = acceleration over 1 seconds
 
     //Comfort Cost
-    double comfort_cost =  1 - exp(-10*abs((int)(ego_car.d/4) - ego_target.lane));
+    double comfort_cost = 1 - exp(-10*abs(ego_car.d - (ego_target.lane*4+2)));
+    comfort_cost += 1 - exp(-10*abs(ego_car.d - ego_car.prev_d)); //prev_d is updated in behavior planner
+    //if((int)ego_car.prev_d/4 == ego_target.lane) //only do this for lane_change cost not for keep lane cost
+    //    comfort_cost *= 1;
 
     //total cost
     double tot_cost = cost_func_weights.collision*collision_cost + cost_func_weights.reach_goal*reach_goal_cost + cost_func_weights.comfort*comfort_cost;
@@ -536,8 +560,8 @@ double realize_keep_lane(vehicle_Data &ego_car, target_Data &ego_target, vector<
     ego_target.speed += ego_target.accel;
     ego_target_speed_validation(ego_target);
 
-    double min_separation_dist = temp_vec[1]; //this is in meters (distance along Frenet s axis)
-    double tot_cost = calculate_cost_keep_lane(ego_car, ego_target, min_separation_dist);
+    double min_separation_dist_next = temp_vec[1]; //this is in meters (distance along Frenet s axis)
+    double tot_cost = calculate_cost_keep_lane(ego_car, ego_target, min_separation_dist_next);
 
     return tot_cost;
 }
@@ -550,32 +574,39 @@ double calculate_cost_lane_change(vector<double> &output_KL, vector<vector<doubl
     //Collision and Danger Cost
 
     double KL_max_acc = output_KL[0];
-    double KL_dist_closest_front = output_KL[1];
+    double KL_dist_closest_front_next = output_KL[1];
 
     double LC_max_acc = output_LC[0][0];
-    double LC_dist_closest_front = output_LC[0][1];
+    double LC_dist_closest_front_next = output_LC[0][1];
     double LC_min_acc = output_LC[1][0];
-    double LC_dist_closest_back = output_LC[1][1];
+    double LC_dist_closest_back_next = output_LC[1][1];
 
     double collision_cost=0;
     //for back
     //if(LC_min_acc > KL_max_acc) //check if I should use this instead of distance
-    if(LC_dist_closest_back < 10)
-        collision_cost = exp(-LC_dist_closest_back/2);
-    else
-        collision_cost = exp(-LC_dist_closest_back*3);
+//    if(LC_dist_closest_back < 10)
+//        collision_cost = exp((5-LC_dist_closest_back)*1);
+//    else
+//        collision_cost = exp(-LC_dist_closest_back*3);
+
     //for front
-    if(LC_dist_closest_front < 20)
-        collision_cost = collision_cost + exp(-LC_dist_closest_front/2);
-    else
-        collision_cost = collision_cost + exp(-LC_dist_closest_front*3);
+//    if(LC_dist_closest_front < 20)
+//        collision_cost = collision_cost + exp((5-LC_dist_closest_front)*1);
+//    else
+//        collision_cost = collision_cost + exp(-LC_dist_closest_front*3);
+    collision_cost += exp((15-LC_dist_closest_back_next/3)); //min separation is in meters
+    collision_cost += exp((20-LC_dist_closest_front_next/3)); //min separation is in meters
+    //LC_dist_closest_front_next/2 effectively divides the prediction horizon time by 2
 
    //Reach Goal Cost
     //this is still necessary even though max_accel_in_lane takes care of part of it. This helps pick the decision which gets us closest to goal.
-    double reach_goal_cost = exp(-(LC_dist_closest_front * LC_max_acc)/10);
+    double reach_goal_cost = exp((ego_target.max_speed - (ego_car.speed+LC_max_acc*50))*0.25) - 1; //50 = acceleration over 1 seconds (50*0.02)
 
     //Comfort Cost
-    double comfort_cost = 1 - exp(-10*abs((int)(ego_car.d/4) - ego_target.lane));
+    double comfort_cost = 1 - exp(-10*abs(ego_car.d - (ego_target.lane*4+2)));
+    comfort_cost += 1 - exp(-10*abs(ego_car.d - ego_car.prev_d)); //prev_d is updated in behavior planner
+    if((int)ego_car.prev_d/4 == ego_target.lane)
+        comfort_cost *= 5;
 
     //total cost
     double KL_cost = cost_func_weights.collision*collision_cost + cost_func_weights.reach_goal*reach_goal_cost + cost_func_weights.comfort*comfort_cost;
@@ -608,7 +639,9 @@ double realize_lane_change(vehicle_Data &ego_car, target_Data &ego_target, vecto
     //update target lane and speed/accel
     ego_target.lane = (int)(ego_car.d/4) + delta; //change lane
 
-    ego_target.accel = 0.0; //output_LC[0][0]; //update accel to max_accel
+    ego_target.accel = 0.0; //output_LC[0][0]; //dont accelerate when changing lanes
+    if(output_KL[0] < 0)
+        ego_target.accel = output_KL[0]; //i.e. slow down so as not to collide with car infront of EGO in current lane before changing lanes
     ego_target.speed += ego_target.accel;
     ego_target_speed_validation(ego_target);
 
@@ -654,10 +687,10 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
     vector<vector<double>> trajectory_y;
 
     //for finding min. cost path
-    double min_cost = 1e10; //a really large number
+    double min_cost = 1e16; //a really large number
     double cost_ith_traj;
     string state_min_cost;
-    target_Data min_cost_target;
+    target_Data min_cost_target, KL_target;
 
     for(int i=0; i<possible_states.size(); i++)
     {
@@ -671,6 +704,7 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
         if (temp_state == "KL")
         {
             cost_ith_traj = realize_keep_lane(temp_ego_car, temp_ego_target, temp_sensor_fusion);
+            KL_target = temp_ego_target;
             cout << "KL: " << cost_ith_traj << "\n";
         }
         else if (temp_state == "LCL")
@@ -688,7 +722,7 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
             cout << "Invalid State\n";
         }
 
-        if (cost_ith_traj < min_cost)
+        if (cost_ith_traj < (min_cost))
         {
             min_cost = cost_ith_traj;
             min_cost_target = temp_ego_target;
@@ -697,90 +731,34 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
     }
     //cout << possible_states[traj_min_cost] << "\n\n";
 
-    ego_target = min_cost_target;
+    if(min_cost < 4e8) //&& min_cost < (0.8*ego_car.prev_cost)) //so as to avoid oscillatory behavior if all the costs are similar
+    {
+        if(ego_car.prev_decision == state_min_cost)
+        {
+            ego_target = min_cost_target;
+            ego_car.state = state_min_cost;
+            ego_car.prev_d = ego_car.d;
+        }
+        else
+        {
+            ego_target = KL_target;
+            ego_car.state = "KL";
+            ego_car.prev_d = ego_car.d;
+        }
+
+        ego_car.prev_decision = state_min_cost;
+    }
+
+    else
+    {
+        ego_target = KL_target;
+        ego_car.state = "KL";
+        ego_car.prev_d = ego_car.d;
+
+        ego_car.prev_decision = "Keep Prev State"; //even though its KL
+    }
 
 }
-
-//void update_ego_state(int &prev_size, vehicle_Data &ego_car, target_Data &ego_target, vector<vector<double>> &sensor_fusion, double &end_path_s, double &end_path_d, string &state)
-//{
-//    if(state == "LCL" && ego_car.d > 4)
-//    {
-//       ego_target.lane = (int)(ego_car.d/4) - 1;
-//    }
-//
-//    else if(state == "LCR" && ego_car.d < 8)
-//    {
-//        ego_target.lane = (int)(ego_car.d/4) + 1;
-//    }
-//
-//    else
-//    {
-//        ego_target.lane = (int)(ego_car.d/4);
-//        cout << ego_target.lane << endl;
-//    }
-//
-//    if(prev_size > 0)
-//    {
-//        ego_car.s = end_path_s;
-//        ego_car.d = end_path_d;
-//    }
-//
-//    bool too_close = false;
-//
-//    //find ref_v to use
-//    for(int i=0; i<sensor_fusion.size(); i++)
-//    {
-//        //check if car is in my lane
-//        float d = sensor_fusion[i][6];
-//        //cout << d << "\t" << 2+target_lane*4 << "\t" << car_d << endl;
-//        //if((d > (2+target_lane*4-2)) && (d < (2+target_lane*4+2))) //car could be off center in a lane so have to check in a range of values
-//        if((d > (ego_car.d-2)) && (d < (ego_car.d+2)))
-//        {
-//            double vx = sensor_fusion[i][3];
-//            double vy = sensor_fusion[i][4];
-//            double check_speed = sqrt(vx*vx+vy*vy);
-//            double check_car_s = sensor_fusion[i][5];
-//
-//            double s_gap = 30;
-//            //using previous points can project the sensor fusion car out into future
-//            check_car_s += (double)prev_size * 0.02 * check_speed; //use prev_size as we are saying car_s = end_path_s
-//            //check s values grater than mine and s gap
-//            if(check_car_s > ego_car.s && (check_car_s - ego_car.s) < s_gap)
-//            {
-//                //do some logic here
-//                //lower reference velocity so we don't crash into the car infront of us
-//                //could also flag to try to change lane
-//                //target_vel = 25; //MPH
-//                too_close = true;
-//                ego_target.speed -= ego_target.accel;
-//                //ego_target.lane = (int)(ego_car.d/4) - 1; //LCL
-//
-//
-//                //if(state == "LCL" && ego_target.lane > 0)
-//                //{
-//                //   ego_target.lane -= 1;
-//                //}
-//
-//                //if(state == "LCR" && ego_target.lane < 2)
-//                //{
-//                //    ego_target.lane += 1;
-//                //}
-//
-//            }
-//
-//        }
-//    }
-//
-//    if(too_close)
-//    {
-//        //ego_target.speed -= ego_target.accel;
-//    }
-//
-//    else if(ego_target.speed < ego_target.max_speed)
-//    {
-//        ego_target.speed += ego_target.accel;
-//    }
-//}
 
 
 int main() {
@@ -794,7 +772,8 @@ int main() {
   vector<double> map_waypoints_dy;
 
   // Waypoint map to read from
-  string map_file_ = "../data/highway_map.csv";
+  //string map_file_ = "../data/highway_map_bosch1.csv"; //Bosch Challenge
+  string map_file_ = "../data/highway_map.csv"; //Path Planning Project
   // The max s value before wrapping around the track back to 0
   double max_s = 6945.554;
 
@@ -822,10 +801,8 @@ int main() {
 
   vehicle_Data ego_car; //no need to initialize s,d,speed,x,y,yaw as we get them from localization data
   ego_car.state = "KL";
-  ego_car.accel = 0.0; //initially set to zero
 
   target_Data ego_target;
-  //ego_target.accel = 0.224; //MPH per (0.02second). //0.224 MPH/(0.02SEC) = 11MPH/SEC = 5m/s^2. This is acceleration
   ego_target.speed = 0.0; //MPH
   ego_target.lane = 1; //lane 0 is left most, 1 is middle lane, and 2 is right most
 
@@ -885,36 +862,15 @@ int main() {
             ego_car.x = car_x;
             ego_car.y = car_y;
             ego_car.yaw = car_yaw;
-            //ego_car.state = "KL";
+
             //ego_car.state/accel are updated in the behavior_Planner function
             behavior_Planner(ego_car, sensor_fusion, ego_target);
-
-            //update_ego_state(prev_size, ego_car, ego_target, sensor_fusion, end_path_s, end_path_d, ego_car.state);
 
             //define the actual (x,y) points we will use for the planner
             vector<double> next_x_vals;
             vector<double> next_y_vals;
 
             generate_Trajectory(next_x_vals, next_y_vals, ego_car, previous_path_x, previous_path_y, ego_target, map_waypoints_x, map_waypoints_y, map_waypoints_s);
-
-
-//            //basic go forward in the lane without smoothing
-//            double dist_inc = 0.5;
-//            for(int i = 0; i < 50; i++)
-//            {
-//                double next_s = car_s + (i+1)*30/2.24*0.02; //(i+1)*dist_inc;
-//                //frenet is from the double yellow lines. Lane width is 4 meters
-//                //Being in the middle of second lane is 1.5 lanes from the double yellow lines
-//                double next_d = 1.5 * 4;
-//                vector<double> next_xy = getXY(next_s, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-//                next_x_vals.push_back(next_xy[0]);
-//                next_y_vals.push_back(next_xy[1]);
-//                //next_x_vals.push_back(car_x+(dist_inc*i)*cos(deg2rad(car_yaw))); //for straight line
-//                //next_y_vals.push_back(car_y+(dist_inc*i)*sin(deg2rad(car_yaw))); //for straight line
-//            }
-//
-//            cout << car_speed << endl;
-            //end to do
 
             msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
