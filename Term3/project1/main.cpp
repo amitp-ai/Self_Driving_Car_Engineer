@@ -744,7 +744,7 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
         if(ego_car.prev_decision == state_min_cost)
         {
 	    ego_car.decision_count += 1;
-	    if(ego_car.decision_count >= 2)
+	    if(ego_car.decision_count >= 2) //so as to only take a decision if its consistent and not random due to bad data
 	    {
                 ego_target = min_cost_target;
                 ego_car.state = state_min_cost;
