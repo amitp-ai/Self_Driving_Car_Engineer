@@ -165,6 +165,7 @@ struct vehicle_Data
 {
     double x, y, yaw, s, d, speed;
     double prev_d=0.0; //initialized to 0
+    int decision_count = 0; //initialized to 0
     string prev_decision = "KL";
     string state;
 };
@@ -652,6 +653,13 @@ double realize_lane_change(vehicle_Data &ego_car, target_Data &ego_target, vecto
 
 }
 
+void maintain_KL_State(vehicle_Data &ego_car, target_Data &ego_target, target_data &KL_target)
+{
+    ego_target = KL_target;
+    ego_car.state = "KL";
+    ego_car.prev_d = ego_car.d;
+}	
+	
 void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusion, target_Data &ego_target)
 {
     //figure out the list of possible next states
@@ -735,27 +743,32 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
     {
         if(ego_car.prev_decision == state_min_cost)
         {
-            ego_target = min_cost_target;
-            ego_car.state = state_min_cost;
-            ego_car.prev_d = ego_car.d;
-        }
+	    ego_car.decision_count += 1;
+	    if(ego_car.decision_count >= 2)
+	    {
+                ego_target = min_cost_target;
+                ego_car.state = state_min_cost;
+                ego_car.prev_d = ego_car.d;
+	    }
+	    else
+	    {
+	        maintain_KL_State(ego_car, ego_target, KL_target);
+	    }
+	}
         else
-        {
-            ego_target = KL_target;
-            ego_car.state = "KL";
-            ego_car.prev_d = ego_car.d;
-        }
+	{
+	    maintain_KL_State(ego_car, ego_target, KL_target);
+	    ego_car.decision_count = 0;
+	}
 
         ego_car.prev_decision = state_min_cost;
     }
 
     else
     {
-        ego_target = KL_target;
-        ego_car.state = "KL";
-        ego_car.prev_d = ego_car.d;
-
-        ego_car.prev_decision = "Keep Prev State"; //even though its KL
+        maintain_KL_State(ego_car, ego_target, KL_target);
+        ego_car.prev_decision = "Keep Prev State"; //use this even though its KL
+	ego_car.decision_count = 0;
     }
 
 }
