@@ -164,7 +164,7 @@ vector<double> getXY(double s, double d, vector<double> maps_s, vector<double> m
 struct vehicle_Data
 {
     double x, y, yaw, s, d, speed;
-    double prev_d=0.0; //initialized to 0
+    double prev_d = 0.0; //initialized to 0
     int decision_count = 0; //initialized to 0
     string prev_decision = "KL";
     string state;
@@ -607,7 +607,7 @@ double calculate_cost_lane_change(vector<double> &output_KL, vector<vector<doubl
     double comfort_cost = 1 - exp(-10*abs(ego_car.d - (ego_target.lane*4+2)));
     comfort_cost += 1 - exp(-10*abs(ego_car.d - ego_car.prev_d)); //prev_d is updated in behavior planner
     if((int)ego_car.prev_d/4 == ego_target.lane)
-        comfort_cost *= 5;
+        comfort_cost *= 50;
 
     //total cost
     double KL_cost = cost_func_weights.collision*collision_cost + cost_func_weights.reach_goal*reach_goal_cost + cost_func_weights.comfort*comfort_cost;
@@ -653,13 +653,13 @@ double realize_lane_change(vehicle_Data &ego_car, target_Data &ego_target, vecto
 
 }
 
-void maintain_KL_State(vehicle_Data &ego_car, target_Data &ego_target, target_data &KL_target)
+void maintain_KL_State(vehicle_Data &ego_car, target_Data &ego_target, target_Data &KL_target)
 {
     ego_target = KL_target;
     ego_car.state = "KL";
     ego_car.prev_d = ego_car.d;
-}	
-	
+}
+
 void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusion, target_Data &ego_target)
 {
     //figure out the list of possible next states
@@ -739,27 +739,27 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
     }
     //cout << possible_states[traj_min_cost] << "\n\n";
 
-    if(min_cost < 4e8) //&& min_cost < (0.8*ego_car.prev_cost)) //so as to avoid oscillatory behavior if all the costs are similar
+    if(min_cost < 5e9) //&& min_cost < (0.8*ego_car.prev_cost)) //so as to avoid oscillatory behavior if all the costs are similar
     {
         if(ego_car.prev_decision == state_min_cost)
         {
-	    ego_car.decision_count += 1;
-	    if(ego_car.decision_count >= 2) //so as to only take a decision if its consistent and not random due to bad data
-	    {
+            ego_car.decision_count += 1;
+            if(ego_car.decision_count >= 1) //so as to only take a decision if its consistent and not random due to bad data
+            {
                 ego_target = min_cost_target;
                 ego_car.state = state_min_cost;
                 ego_car.prev_d = ego_car.d;
-	    }
-	    else
-	    {
-	        maintain_KL_State(ego_car, ego_target, KL_target);
-	    }
-	}
+            }
+            else
+            {
+                maintain_KL_State(ego_car, ego_target, KL_target);
+            }
+        }
         else
-	{
-	    maintain_KL_State(ego_car, ego_target, KL_target);
-	    ego_car.decision_count = 0;
-	}
+        {
+            maintain_KL_State(ego_car, ego_target, KL_target);
+            ego_car.decision_count = 0;
+        }
 
         ego_car.prev_decision = state_min_cost;
     }
@@ -768,7 +768,7 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
     {
         maintain_KL_State(ego_car, ego_target, KL_target);
         ego_car.prev_decision = "Keep Prev State"; //use this even though its KL
-	ego_car.decision_count = 0;
+        ego_car.decision_count = 0;
     }
 
 }
@@ -785,8 +785,8 @@ int main() {
   vector<double> map_waypoints_dy;
 
   // Waypoint map to read from
-  //string map_file_ = "../data/highway_map_bosch1.csv"; //Bosch Challenge
-  string map_file_ = "../data/highway_map.csv"; //Path Planning Project
+  string map_file_ = "../data/highway_map_bosch1.csv"; //Bosch Challenge
+  //string map_file_ = "../data/highway_map.csv"; //Path Planning Project
   // The max s value before wrapping around the track back to 0
   double max_s = 6945.554;
 
