@@ -177,7 +177,7 @@ struct target_Data
     double max_speed = 49.0; //MPH
     double max_accel = 0.224*10; //*2; //MPH per (0.02second). //0.224 MPH/(0.02SEC) = 11MPH/SEC = 5m/s^2. This is acceleration
     int plan_horizon = 50; //number of points to plan ahead every iteration
-    double preferred_buffer = 30; //30 meters //0.1*1.61*1000; //in meters (0.1Miles * 1600m/miles)
+    double preferred_buffer = 25; //30 meters //0.1*1.61*1000; //in meters (0.1Miles * 1600m/miles)
 };
 
 void generate_Trajectory(vector<double> &next_x_vals, vector<double> &next_y_vals, vehicle_Data &ego_car, vector<double> &previous_path_x, vector<double> &previous_path_y, target_Data &ego_target, vector<double> &map_waypoints_x, vector<double> &map_waypoints_y, vector<double> &map_waypoints_s)
@@ -319,8 +319,8 @@ double validate_max_accel(double &available_acc, vehicle_Data &ego_car, target_D
 
     if(max_acc < 0)
     {
-        double min_acc_allowed = 0.25*ego_target.max_accel;
-        max_acc = max_acc * (1 + exp(max_acc - min_acc_allowed)); //smooth function to minimize jerk
+        double min_acc_allowed = 0.1*ego_target.max_accel;
+        max_acc = max_acc * (1 + 2*exp(max_acc - min_acc_allowed)); //smooth function to minimize jerk
     }
     else if(max_acc > 0)
     {
@@ -607,7 +607,7 @@ double calculate_cost_lane_change(vector<double> &output_KL, vector<vector<doubl
     double comfort_cost = 1 - exp(-10*abs(ego_car.d - (ego_target.lane*4+2)));
     comfort_cost += 1 - exp(-10*abs(ego_car.d - ego_car.prev_d)); //prev_d is updated in behavior planner
     if((int)ego_car.prev_d/4 == ego_target.lane)
-        comfort_cost *= 50;
+        comfort_cost *= 1; //50; //penalize oscillatory behavior
 
     //total cost
     double KL_cost = cost_func_weights.collision*collision_cost + cost_func_weights.reach_goal*reach_goal_cost + cost_func_weights.comfort*comfort_cost;
@@ -640,8 +640,8 @@ double realize_lane_change(vehicle_Data &ego_car, target_Data &ego_target, vecto
     //update target lane and speed/accel
     ego_target.lane = (int)(ego_car.d/4) + delta; //change lane
 
-    ego_target.accel = 0.0; //output_LC[0][0]; //dont accelerate when changing lanes
-    if(output_KL[0] < 0)
+    ego_target.accel = output_LC[0][0]; //0.0; //output_LC[0][0]; //dont accelerate when changing lanes
+    if(output_KL[0] < ego_target.accel)
         ego_target.accel = output_KL[0]; //i.e. slow down so as not to collide with car infront of EGO in current lane before changing lanes
     ego_target.speed += ego_target.accel;
     ego_target_speed_validation(ego_target);
@@ -744,7 +744,7 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
         if(ego_car.prev_decision == state_min_cost)
         {
             ego_car.decision_count += 1;
-            if(ego_car.decision_count >= 1) //so as to only take a decision if its consistent and not random due to bad data
+            if(ego_car.decision_count >= 5) //so as to only take a decision if its consistent and not random due to bad data
             {
                 ego_target = min_cost_target;
                 ego_car.state = state_min_cost;
