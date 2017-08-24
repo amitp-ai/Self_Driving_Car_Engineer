@@ -632,10 +632,12 @@ double realize_lane_change(vehicle_Data &ego_car, target_Data &ego_target, vecto
     //reinitialize these variables;
     temp_ego_car = ego_car;
     temp_ego_target = ego_target;
+
     int temp_lane = (int)(ego_car.d/4) + delta;
     temp_ego_car.d = (double) (temp_lane*4 + 2); //teleport the car into the target lane, with everything else staying as is.
+    //temp_ego_car.d = ego_car.d + delta*4; //TRY THIS TOO AFTERWARDS
+
     vector<vector<double>> output_LC = max_accel_for_lane_change(temp_ego_car, temp_ego_target, sensor_fusion);
-    //eventually need to add prepare lane change state to make sure the car can change lane.
 
     //update target lane and speed/accel
     ego_target.lane = (int)(ego_car.d/4) + delta; //change lane
@@ -652,6 +654,30 @@ double realize_lane_change(vehicle_Data &ego_car, target_Data &ego_target, vecto
     return LC_cost;
 
 }
+
+double realize_prep_far_lane_change(vehicle_Data &ego_car, target_Data &ego_target, vector<vector<double>> &sensor_fusion, string str_turn)
+{
+    //this function updates the target lane and target acceleration (in MPH/0.02sec)
+
+    //The Behavior Planner is implemented such that this function will only be called if current lane is 0 or 2
+    int delta_first_turn = -1; //for PLCFL, first turn left
+    string str_second_turn = "L"; //for the second left turn
+    if(str_turn == "FR")
+    {
+        delta_first_turn = 1; //for PLCFR, first turn right
+        str_second_turn = "R"; //for the second right turn
+    }
+    int first_turn_lane = (int)(ego_car.d/4) + delta_first_turn;
+    ego_car.d = (double) (first_turn_lane*4 + 2); //teleport the car into the first target lane (for first turn), with everything else staying as is.
+
+
+    //calculate cost going in the far left or far right lane
+    double cost_PLCF = realize_lane_change(ego_car, ego_target, sensor_fusion, str_second_turn);
+
+    return cost_PLCF;
+
+}
+
 
 void maintain_KL_State(vehicle_Data &ego_car, target_Data &ego_target, target_Data &KL_target)
 {
@@ -670,49 +696,76 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
     possible_states .push_back("KL");
     if (ego_car.state == "KL")
     {
-	if(temp_ego_lane > 0)
-	    possible_states.push_back("LCL");
-	if(temp_ego_lane < 2)
-	    possible_states.push_back("LCR");
+        if(temp_ego_lane > 0)
+        {
+            possible_states.push_back("LCL");
+        }
+        else //lane=0
+        {
+            possible_states.push_back("PLCFR"); //prep lane change far right
+        }
+
+        if(temp_ego_lane < 2)
+        {
+            possible_states.push_back("LCR");
+        }
+        else //lane=2
+        {
+            possible_states.push_back("PLCFL");
+        }
     }
     else if (ego_car.state == "LCL")
     {
-	if(temp_ego_lane > 0)
-	    possible_states.push_back("LCL");
+        if(temp_ego_lane > 0)
+        {
+            possible_states.push_back("LCL");
+        }
     }
     else if (ego_car.state == "LCR")
     {
-	if(temp_ego_lane < 2)
-	    possible_states.push_back("LCR");
+        if(temp_ego_lane < 2)
+        {
+            possible_states.push_back("LCR");
+        }
+    }
+    else if (ego_car.state == "PLCFL")
+    {
+        if(temp_ego_lane == 2) //only go to the below states if lane is far right, else only go to KL state
+        {
+            possible_states.push_back("PLCFL");
+            possible_states.push_back("LCL");
+
+        }
+    }
+    else if (ego_car.state == "PLCFR")
+    {
+        if(temp_ego_lane == 0) //only go to the below states if lane is far left, else only go to KL state
+        {
+            possible_states.push_back("PLCFR");
+            possible_states.push_back("LCR");
+        }
     }
     else
         cout << "Invalid State\n";
 
     //possible_states = {"KL"};
 
-    //car_speed is the speed in s direction
-    vector<vector<double>> trajectory_x;
-    vector<vector<double>> trajectory_y;
-
-    //for finding min. cost path
-    double min_cost = 1e16; //a really large number
+    //vectors of cost and target_states for possible states
+    vector<double> cost_possible_states;
+    vector<target_Data> target_data_possible_states;
     double cost_ith_traj;
-    string state_min_cost;
-    target_Data min_cost_target, KL_target;
-
+    target_Data KL_target;
     for(int i=0; i<possible_states.size(); i++)
     {
         string temp_state = possible_states[i];
         vector<vector<double>> temp_sensor_fusion = sensor_fusion;
         vehicle_Data temp_ego_car = ego_car;
         target_Data temp_ego_target = ego_target;
-        vector<double> temp_x_vals;
-        vector<double> temp_y_vals;
 
         if (temp_state == "KL")
         {
             cost_ith_traj = realize_keep_lane(temp_ego_car, temp_ego_target, temp_sensor_fusion);
-            KL_target = temp_ego_target;
+             KL_target = temp_ego_target;
             cout << "KL: " << cost_ith_traj << "\n";
         }
         else if (temp_state == "LCL")
@@ -725,18 +778,93 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
             cost_ith_traj = realize_lane_change(temp_ego_car, temp_ego_target, temp_sensor_fusion, "R");
             cout << "LCR: " << cost_ith_traj << "\n";
         }
+        else if (temp_state == "PLCFL")
+        {
+            cost_ith_traj = realize_prep_far_lane_change(temp_ego_car, temp_ego_target, temp_sensor_fusion, "FL");
+            cout << "PLCFL: " << cost_ith_traj << "\n";
+        }
+        else if (temp_state == "PLCFR")
+        {
+            cost_ith_traj = realize_prep_far_lane_change(temp_ego_car, temp_ego_target, temp_sensor_fusion, "FR");
+            cout << "PLCFR: " << cost_ith_traj << "\n";
+        }
         else
         {
-            cout << "Invalid State\n";
+            cout << "Invalid State: Throw Error!\n";
         }
 
-        if (cost_ith_traj < (min_cost))
+        cost_possible_states.push_back(cost_ith_traj);
+        target_data_possible_states.push_back(temp_ego_target);
+    }
+
+
+    //for finding min. cost path
+    double min_cost = 1e16; //a really large number
+    string state_min_cost = "UNKNOWN";
+    target_Data min_cost_target;
+    for(int i=0; i<possible_states.size(); i++)
+    {
+        if (cost_possible_states[i] < (min_cost))
         {
-            min_cost = cost_ith_traj;
-            min_cost_target = temp_ego_target;
+            min_cost = cost_possible_states[i];
+            min_cost_target = target_data_possible_states[i];
             state_min_cost = possible_states[i];
         }
     }
+
+    //For PLCFL or PLCFR states
+    double cost_KL, cost_LC, cost_PLCF;
+    target_Data target_data_KL, target_data_LC, target_data_PLCF;
+    string state_KL, state_LC, state_PLCF;
+    if(state_min_cost == "PLCFL" || state_min_cost == "PLCFR")
+    {
+        for(int i=0; i<possible_states.size(); i++)
+        {
+            if(possible_states[i] == "PLCFL" || possible_states[i] == "PLCFR")
+            {
+                cost_PLCF = cost_possible_states[i];
+                target_data_PLCF = target_data_possible_states[i];
+                state_PLCF = possible_states[i];
+            }
+            else if(possible_states[i] == "LCL" || possible_states[i] == "LCR")
+            {
+                cost_LC = cost_possible_states[i];
+                target_data_LC = target_data_possible_states[i];
+                state_LC = possible_states[i];
+            }
+            else if(possible_states[i] == "KL")
+            {
+                cost_KL = cost_possible_states[i];
+                target_data_KL = target_data_possible_states[i];
+                state_KL = possible_states[i];
+            }
+            else
+                cout << "Invalid State (PLCF Section): Throw Error\n";
+        }
+
+        if(cost_PLCF<1e6 && cost_PLCF<cost_KL/10 && cost_PLCF<cost_LC/10)
+        {
+            //keep min cost as it is (either PLCFR or PLCFL)
+        }
+
+        else
+        {
+            if(cost_KL <= cost_LC)
+            {
+                min_cost = cost_KL;
+                min_cost_target = target_data_KL;
+                state_min_cost = state_KL;
+            }
+            else
+            {
+                min_cost = cost_LC;
+                min_cost_target = target_data_LC;
+                state_min_cost = state_LC;
+            }
+        }
+    }
+
+
     //cout << possible_states[traj_min_cost] << "\n\n";
 
     if(min_cost < 5e9) //&& min_cost < (0.8*ego_car.prev_cost)) //so as to avoid oscillatory behavior if all the costs are similar
