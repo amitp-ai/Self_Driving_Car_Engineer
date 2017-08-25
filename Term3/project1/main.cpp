@@ -667,13 +667,50 @@ double realize_prep_far_lane_change(vehicle_Data &ego_car, target_Data &ego_targ
         delta_first_turn = 1; //for PLCFR, first turn right
         str_second_turn = "R"; //for the second right turn
     }
-    int first_turn_lane = (int)(ego_car.d/4) + delta_first_turn;
-    ego_car.d = (double) (first_turn_lane*4 + 2); //teleport the car into the first target lane (for first turn), with everything else staying as is.
 
+//********************Calculate Cost of going to far left/right lane********************************
+    //reinitialize these variables and calculate cost going in the far left or far right lane
+    vehicle_Data temp_ego_car = ego_car;
+    target_Data temp_ego_target = ego_target;
+    int first_turn_lane = (int)(temp_ego_car.d/4) + delta_first_turn;
+    temp_ego_car.d = (double) (first_turn_lane*4 + 2); //teleport the car into the first target lane (for first turn), with everything else staying as is.
+    //temp_ego_car.d = ego_car.d + delta*4; //TRY THIS TOO AFTERWARDS
 
-    //calculate cost going in the far left or far right lane
-    double cost_PLCF = realize_lane_change(ego_car, ego_target, sensor_fusion, str_second_turn);
+    //calculate cost going in the far left or far right lane (i.e. another turn in addition to first_turn_lane)
+    double cost_PLCF = realize_lane_change(temp_ego_car, temp_ego_target, sensor_fusion, str_second_turn);
 
+    //increase cost if the car is in the center lane (just in case during transition the car is in middle lane and still in PLCFR/L
+    int curr_lane = (int)(ego_car.d/4);
+    if (curr_lane == 1)
+        cost_PLCF *= 100;
+//****************************************************
+
+//********************update state to prepare to change to adjacent lane********************************
+
+    //keep current lane
+    temp_ego_car = ego_car;
+    temp_ego_target = ego_target;
+    vector<double> output_KL = max_accel_for_keep_lane(temp_ego_car, temp_ego_target, sensor_fusion);
+
+    //change lanes
+    //reinitialize these variables;
+    temp_ego_car = ego_car;
+    temp_ego_target = ego_target;
+    first_turn_lane = (int)(temp_ego_car.d/4) + delta_first_turn;
+    temp_ego_car.d = (double) (first_turn_lane*4 + 2); //teleport the car into the first target lane (for first turn), with everything else staying as is.
+    //temp_ego_car.d = ego_car.d + delta*4; //TRY THIS TOO AFTERWARDS
+    vector<vector<double>> output_LC = max_accel_for_lane_change(temp_ego_car, temp_ego_target, sensor_fusion);
+
+    //update target lane and speed/accel (to stay in current lane but prepare to change lane)
+    ego_target.lane = (int)(ego_car.d/4); //maintain current lane
+
+    ego_target.accel = output_LC[0][0]; //0.0; //output_LC[0][0]; //dont accelerate when changing lanes
+    if(output_KL[0] < ego_target.accel)
+        ego_target.accel = output_KL[0]; //i.e. slow down so as not to collide with car infront of EGO in current lane before changing lanes
+    ego_target.speed += ego_target.accel;
+    ego_target_speed_validation(ego_target);
+    //end update target lane and speed/accel
+//****************************************************
     return cost_PLCF;
 
 }
@@ -686,6 +723,7 @@ void maintain_KL_State(vehicle_Data &ego_car, target_Data &ego_target, target_Da
     ego_car.prev_d = ego_car.d;
 }
 
+int counter_tmp = 0;
 void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusion, target_Data &ego_target)
 {
     //figure out the list of possible next states
@@ -766,27 +804,27 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
         {
             cost_ith_traj = realize_keep_lane(temp_ego_car, temp_ego_target, temp_sensor_fusion);
              KL_target = temp_ego_target;
-            cout << "KL: " << cost_ith_traj << "\n";
+            //cout << "KL: " << cost_ith_traj << "\n";
         }
         else if (temp_state == "LCL")
         {
             cost_ith_traj = realize_lane_change(temp_ego_car, temp_ego_target, temp_sensor_fusion, "L");
-            cout << "LCL: " << cost_ith_traj << "\n";
+            //cout << "LCL: " << cost_ith_traj << "\n";
         }
         else if (temp_state == "LCR")
         {
             cost_ith_traj = realize_lane_change(temp_ego_car, temp_ego_target, temp_sensor_fusion, "R");
-            cout << "LCR: " << cost_ith_traj << "\n";
+            //cout << "LCR: " << cost_ith_traj << "\n";
         }
         else if (temp_state == "PLCFL")
         {
             cost_ith_traj = realize_prep_far_lane_change(temp_ego_car, temp_ego_target, temp_sensor_fusion, "FL");
-            cout << "PLCFL: " << cost_ith_traj << "\n";
+            //cout << "PLCFL: " << cost_ith_traj << "\n";
         }
         else if (temp_state == "PLCFR")
         {
             cost_ith_traj = realize_prep_far_lane_change(temp_ego_car, temp_ego_target, temp_sensor_fusion, "FR");
-            cout << "PLCFR: " << cost_ith_traj << "\n";
+            //cout << "PLCFR: " << cost_ith_traj << "\n";
         }
         else
         {
@@ -842,24 +880,44 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
                 cout << "Invalid State (PLCF Section): Throw Error\n";
         }
 
-        if(cost_PLCF<1e6 && cost_PLCF<cost_KL/10 && cost_PLCF<cost_LC/10)
+        if(cost_PLCF<1e6 && cost_PLCF<cost_KL/3 && cost_PLCF<cost_LC/3)
         {
-            //keep min cost as it is (either PLCFR or PLCFL)
+            counter_tmp +=1;
+            if(cost_LC < 3e7) //if safe to change lane
+            {
+                //then change lane
+                min_cost = cost_LC;
+                min_cost_target = target_data_LC;
+                state_min_cost = state_LC;
+                cout << "\nPLCF to LC: " << counter_tmp << "\n";
+            }
+
+            else
+            {
+                //prepare lane change
+                min_cost = cost_PLCF; //this is not necessary as its redundant
+                min_cost_target = target_data_PLCF; //to adjust speed so the car fits in the gap in the adjacent lane
+                state_min_cost = state_PLCF; //state stays as PLCFL/PLCFR
+                cout << "\nPLCF\n: " << counter_tmp << "\n";
+            }
+            //so that it is directly implemented without going to KL (maintain KL) state
+            ego_car.prev_decision = state_min_cost;
+            ego_car.decision_count = 5;
         }
 
-        else
+        else //ignore PLCF
         {
-            if(cost_KL <= cost_LC)
-            {
-                min_cost = cost_KL;
-                min_cost_target = target_data_KL;
-                state_min_cost = state_KL;
-            }
-            else
+            if(cost_LC < cost_KL)
             {
                 min_cost = cost_LC;
                 min_cost_target = target_data_LC;
                 state_min_cost = state_LC;
+            }
+            else //cost_KL <= cost_LC
+            {
+                min_cost = cost_KL;
+                min_cost_target = target_data_KL;
+                state_min_cost = state_KL;
             }
         }
     }
@@ -913,8 +971,8 @@ int main() {
   vector<double> map_waypoints_dy;
 
   // Waypoint map to read from
-  string map_file_ = "../data/highway_map_bosch1.csv"; //Bosch Challenge
-  //string map_file_ = "../data/highway_map.csv"; //Path Planning Project
+  //string map_file_ = "../data/highway_map_bosch1.csv"; //Bosch Challenge
+  string map_file_ = "../data/highway_map.csv"; //Path Planning Project
   // The max s value before wrapping around the track back to 0
   double max_s = 6945.554;
 
