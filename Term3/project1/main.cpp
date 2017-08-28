@@ -166,7 +166,8 @@ struct vehicle_Data
     double x, y, yaw, s, d, speed;
     double prev_d = 0.0; //initialized to 0
     int decision_count = 0; //initialized to 0
-    string prev_decision = "KL";
+    string prev_decision = "Invalid";
+    int prev_target_lane = 99; //invalid lane
     string state;
 };
 
@@ -175,7 +176,7 @@ struct target_Data
     double speed, accel;
     int lane;
     double max_speed = 49.0; //MPH
-    double max_accel = 0.224*10; //*2; //MPH per (0.02second). //0.224 MPH/(0.02SEC) = 11MPH/SEC = 5m/s^2. This is acceleration
+    double max_accel = 0.448; //MPH per (0.02second). //0.448 MPH/(0.02SEC) = 11MPH/SEC = 10m/s^2. This is acceleration
     int plan_horizon = 50; //number of points to plan ahead every iteration
     double preferred_buffer = 25; //30 meters //0.1*1.61*1000; //in meters (0.1Miles * 1600m/miles)
 };
@@ -202,9 +203,14 @@ void generate_Trajectory(vector<double> &next_x_vals, vector<double> &next_y_val
         double prev_car_x = ref_x - cos(ref_yaw); //should it be car_x-v*0.02*cos(car_yaw)??
         double prev_car_y = ref_y - sin(ref_yaw);
 
+        //double prev2_car_x = prev_car_x - cos(ref_yaw); //should it be car_x-v*0.02*cos(car_yaw)??
+        //double prev2_car_y = prev_car_y - sin(ref_yaw);
+
+       //ptsx.push_back(prev2_car_x);
         ptsx.push_back(prev_car_x);
         ptsx.push_back(ref_x);
 
+        //ptsy.push_back(prev2_car_y);
         ptsy.push_back(prev_car_y);
         ptsy.push_back(ref_y);
     }
@@ -220,19 +226,28 @@ void generate_Trajectory(vector<double> &next_x_vals, vector<double> &next_y_val
         double ref_y_prev = previous_path_y[prev_size-2];
         ref_yaw = atan2(ref_y-ref_y_prev,ref_x-ref_x_prev);
 
+        //double ref_x_prev_2 = previous_path_x[prev_size-3];
+        //double ref_y_prev_2 = previous_path_y[prev_size-3];
+
         //use the two points that make the path tangent to the previous path's end point
+        //ptsx.push_back(ref_x_prev_2);
         ptsx.push_back(ref_x_prev);
         ptsx.push_back(ref_x);
 
+        //ptsy.push_back(ref_y_prev_2);
         ptsy.push_back(ref_y_prev);
         ptsy.push_back(ref_y);
     }
 
     //smoothing is achieved by using the end points from previous path in addition to future points
     //In Frenet add evenly 30m spaced points ahead of the car's current location. Add three such points.
-    double delta_s = ego_car.speed/2.24*2.5; //2.24 to convert MPH to m/s and 2.5 is seconds.
-    if (delta_s < 30)
-        delta_s = 30;
+    double delta_s = ego_car.speed/2.24*2.0; //2.24 to convert MPH to m/s and 2.5 is seconds.
+    if (delta_s < 25)
+        delta_s = 25;
+
+    int curr_lane = (int)(ego_car.d/4);
+    if(curr_lane != ego_target.lane)
+        delta_s *= 1.6;
 
     vector<double> next_wp0 = getXY(ego_car.s+delta_s*1, (2+4*ego_target.lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
     vector<double> next_wp1 = getXY(ego_car.s+delta_s*2, (2+4*ego_target.lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
@@ -319,15 +334,19 @@ double validate_max_accel(double &available_acc, vehicle_Data &ego_car, target_D
 
     if(max_acc < 0)
     {
-        double min_acc_allowed = 0.1*ego_target.max_accel;
-        max_acc = max_acc * (1 + 2*exp(max_acc - min_acc_allowed)); //smooth function to minimize jerk
+        double min_acc_allowed = 0.25*ego_target.max_accel;
+        max_acc = max_acc * (1 + 4*exp(-max_acc - min_acc_allowed)); //smooth function to minimize jerk
+        if(max_acc < -3.5*ego_target.max_accel)
+        {
+            max_acc = -3.5*ego_target.max_accel;
+        }
     }
     else if(max_acc > 0)
     {
-        max_acc *= 2; //effectively reduces planning horizon by sqrt(3) while maintaining the benefit of longer horizon (i.e more realistic and smoother acceleration)
-        if(max_acc > ego_target.max_accel)
+        max_acc *= 4; //effectively reduces planning horizon by sqrt(3) while maintaining the benefit of longer horizon (i.e more realistic and smoother acceleration)
+        if(max_acc > 3*ego_target.max_accel)
         {
-            max_acc = ego_target.max_accel;
+            max_acc = 3*ego_target.max_accel;
         }
     }
 
@@ -336,15 +355,14 @@ double validate_max_accel(double &available_acc, vehicle_Data &ego_car, target_D
 
 double validate_min_accel(double &available_acc, target_Data &ego_target)
 {
-    double min_acc;
-    if(available_acc <= 0)
+    double min_acc = available_acc;
+    if(min_acc <= 0)
         min_acc = 0.0; //lowest possible min_accel in forward direction
     else //i.e. if greater than 0
     {
-        if(available_acc > ego_target.max_accel)
-            min_acc = ego_target.max_accel;
-        else
-            min_acc = available_acc;
+        min_acc *= 4; //to keep it same as validate_ax_acc function
+        if(min_acc > 3*ego_target.max_accel)
+            min_acc = 3*ego_target.max_accel;
     }
 
     return min_acc;
@@ -359,7 +377,7 @@ vector<double> max_accel_for_keep_lane(vehicle_Data &ego_car, target_Data &ego_t
     for(int i=0; i<sensor_fusion.size(); i++)
     {
         double d = sensor_fusion[i][6];
-        if(ego_car.d > (d-2.5) && ego_car.d < (d+2.5))
+        if(ego_car.d > (d-2) && ego_car.d < (d+2))
         {
             if((sensor_fusion[i][5] >= ego_car.s) && ((sensor_fusion[i][5] - ego_car.s) < dist_to_closest_vehicle_infront))
             {
@@ -369,16 +387,17 @@ vector<double> max_accel_for_keep_lane(vehicle_Data &ego_car, target_Data &ego_t
         }
     }
 
-    double temp_plan_horizon = 2.0; //1.5; //seconds
+    double temp_plan_horizon = 1.75; //2.0; //1.5; //seconds
     double available_acc = ego_target.max_accel; //the largest possible value by default
     double separation_next_front = 10000;
-
+    double closest_car_speed = 50; //max speed in MPH. Needs to be high if dist_to_closest_vehicle_infront is high
+    closest_car_speed /= 2.24; //max speed in m/s
     if(dist_to_closest_vehicle_infront < 10000)
     {
         //closest_car_speed is in m/s
         double vx = sensor_fusion[closest_vehicle_infront][3];
         double vy = sensor_fusion[closest_vehicle_infront][4];
-        double closest_car_speed = sqrt(vx*vx+vy*vy); //in m/s
+        closest_car_speed = sqrt(vx*vx+vy*vy); //in m/s
         double closest_car_next_pos = sensor_fusion[closest_vehicle_infront][5];
         closest_car_next_pos += closest_car_speed * temp_plan_horizon; //this is in meters
 
@@ -394,9 +413,9 @@ vector<double> max_accel_for_keep_lane(vehicle_Data &ego_car, target_Data &ego_t
 
     double max_acc = validate_max_accel(available_acc, ego_car, ego_target, temp_plan_horizon);
 
-
+    closest_car_speed *= 2.24; //in MPH
     //cout << max_acc << "\t" << ego_car.speed << "\t" << dist_to_closest_vehicle_infront << "\n" ;
-    return {max_acc, separation_next_front}; //max_acc is in MPH per 0.02sec
+    return {max_acc, separation_next_front, closest_car_speed}; //max_acc is in MPH per 0.02sec
 }
 
 
@@ -411,7 +430,7 @@ vector<vector<double>> max_accel_for_lane_change(vehicle_Data &ego_car, target_D
     for(int i=0; i<sensor_fusion.size(); i++)
     {
         double d = sensor_fusion[i][6];
-        if(ego_car.d > (d-2.5) && ego_car.d < (d+2.5))
+        if(ego_car.d > (d-2) && ego_car.d < (d+2))
         {
             //closest front vehicle
             if((sensor_fusion[i][5] >= ego_car.s) && ((sensor_fusion[i][5] - ego_car.s) < dist_to_closest_vehicle_infront))
@@ -428,18 +447,20 @@ vector<vector<double>> max_accel_for_lane_change(vehicle_Data &ego_car, target_D
         }
     }
 
-    double temp_plan_horizon = 2.0; //1.5; //seconds
+    double temp_plan_horizon = 1.75; //2.0; //1.5; //seconds
     double available_acc = ego_target.max_accel; //the largest possible value by default
     double separation_next_front = 10000;
+    double closest_front_car_speed = 50; //max speed in MPH. Needs to be high if dist_to_closest_vehicle_infront is large
+    closest_front_car_speed /= 2.24; //max speed in m/s
 
     if(dist_to_closest_vehicle_infront < 10000)
     {
-        //closest_car_speed is in m/s
+        //closest_front_car_speed is in m/s
         double vx = sensor_fusion[closest_vehicle_infront][3];
         double vy = sensor_fusion[closest_vehicle_infront][4];
-        double closest_car_speed = sqrt(vx*vx+vy*vy); //in m/s
+        closest_front_car_speed = sqrt(vx*vx+vy*vy); //in m/s
         double closest_car_next_pos = sensor_fusion[closest_vehicle_infront][5];
-        closest_car_next_pos += closest_car_speed * temp_plan_horizon; //this is in meters
+        closest_car_next_pos += closest_front_car_speed * temp_plan_horizon; //this is in meters
 
         double ego_next_pos = ego_car.s + (ego_car.speed/2.24) * temp_plan_horizon; //ego_car's speed is in MPH so divide by 2.24 to convert to m/s
         separation_next_front = closest_car_next_pos - ego_next_pos; //in meters
@@ -455,19 +476,19 @@ vector<vector<double>> max_accel_for_lane_change(vehicle_Data &ego_car, target_D
 
 
     //find the min. acceleration
-    double back_temp_plan_horizon = 1.5; //this can be on a shorter time frame than front planning
-    double back_preffered_buffer = ego_target.preferred_buffer*0.5; //can be a bit more aggressive on buffer than for front gap/buffer
+    double back_temp_plan_horizon = 1.75; //1.5; //this can be on a shorter time frame than front planning
+    double back_preffered_buffer = ego_target.preferred_buffer*1.0; //can be a bit more aggressive on buffer than for front gap/buffer
     available_acc = 0.0; //in MPH/0.02sec //lowest possible forward acceleration
     double separation_next_back = 10000;
-
+    double closest_backcar_speed = 0.0; //for back car this is 0 when dist_to_closest_vehicle_back is very large
     if(dist_to_closest_vehicle_back < 10000)
     {
-        //closest_car_speed is in m/s
+        //closest_backcar_speed is in m/s
         double vx = sensor_fusion[closest_vehicle_back][3];
         double vy = sensor_fusion[closest_vehicle_back][4];
-        double closest_car_speed = sqrt(vx*vx+vy*vy); //in m/s
+        closest_backcar_speed = sqrt(vx*vx+vy*vy); //in m/s
         double closest_car_next_pos = sensor_fusion[closest_vehicle_back][5];
-        closest_car_next_pos += closest_car_speed * back_temp_plan_horizon; //this is in meters
+        closest_car_next_pos += closest_backcar_speed * back_temp_plan_horizon; //this is in meters
 
         double ego_next_pos = ego_car.s + (ego_car.speed/2.24) * back_temp_plan_horizon; //ego_car's speed is in MPH so divide by 2.24 to convert to m/s
         separation_next_back = ego_next_pos - closest_car_next_pos; //in meters
@@ -487,9 +508,11 @@ vector<vector<double>> max_accel_for_lane_change(vehicle_Data &ego_car, target_D
 
     //cout << max_acc << "\t" << dist_to_closest_vehicle_infront <<"\t" << min_acc << "\t" << dist_to_closest_vehicle_back << "\n";
 
+    closest_front_car_speed *= 2.24; //in MPH
+    closest_backcar_speed *= 2.24; //in MPH
     vector<vector<double>> rtn_var;
-    rtn_var.push_back({max_acc, separation_next_front});
-    rtn_var.push_back({min_acc, separation_next_back});
+    rtn_var.push_back({max_acc, separation_next_front, closest_front_car_speed});
+    rtn_var.push_back({min_acc, separation_next_back, closest_backcar_speed});
 
     //min_acc & max_acc are in MPH per 0.02sec and dist_to_closest_vehicle_back & dist_to_closest_vehicle_infront are in meters (Frenet s axis)
     return rtn_var;
@@ -497,10 +520,10 @@ vector<vector<double>> max_accel_for_lane_change(vehicle_Data &ego_car, target_D
 
 void ego_target_speed_validation(target_Data &ego_target)
 {
-    if(ego_target.speed < 0)
+    if(ego_target.speed < 1)
     {
         ego_target.speed = 5.0; //spline function complains if this gets below 0 as it wants the points to be sorted in ascending order. so keep slightly above 0
-        ego_target.accel = 0.0;
+        ego_target.accel = 0.001;
     }
     else if(ego_target.speed > ego_target.max_speed)
     {
@@ -515,13 +538,14 @@ struct cf_weights
 {
     double collision = 6e4;
     //double Danger = 2e3; //buffer check
-    double reach_goal = 1e2; //reach s_max (make sure negative velocities are not allowed)
-    double comfort = 4e4; //penalizes lane changes. Otherwise the car can just keep changing lanes. See the way target_lane is calculated below.
+    double closest_car = 1e3;
+    double reach_goal = 1e2; //reach max velocity
+    double comfort = 4e3; //penalizes lane changes. Otherwise the car can just keep changing lanes. See the way target_lane is calculated below.
 };
 
 cf_weights cost_func_weights;
 
-double calculate_cost_keep_lane(vehicle_Data &ego_car, target_Data &ego_target, double &min_separation_dist_front_next)
+double calculate_cost_keep_lane(vehicle_Data &ego_car, target_Data &ego_target, double &min_separation_dist_front_next, double &closest_car_speed)
 {
     //cout << cost_func_weights["collision cost"] << "\t" << cost_func_weights["buffer cost"] << "\n";
 
@@ -532,21 +556,32 @@ double calculate_cost_keep_lane(vehicle_Data &ego_car, target_Data &ego_target, 
     //    collision_cost = exp((10-min_separation_dist_front));
     //else
     //    collision_cost = exp(-min_separation_dist_front*3);
-    collision_cost = exp((20-min_separation_dist_front_next/3)); //separation distance is in meters
+    double front_car_speed_factor = exp(2*(ego_car.speed/closest_car_speed - 1));
+    if(front_car_speed_factor < 1)
+        front_car_speed_factor = 1;
+    else if(front_car_speed_factor > 1.2)
+        front_car_speed_factor = 1.2;
+    collision_cost = exp((front_car_speed_factor*15-min_separation_dist_front_next/3)); //separation distance is in meters
     //min_separation_dist_front_next/2 effectively divides the prediction horizon time by 2
+
+    //distance to closest vehicle cost
+    double closest_car_cost = (100-min_separation_dist_front_next)/100; //check 100m out
+    if(closest_car_cost < 0)
+        closest_car_cost = 0;
 
     //Reach Goal Cost
     //this is still necessary even though max_accel_in_lane takes care of part of it. This helps pick the decision which gets us closest to goal.
     double reach_goal_cost = exp((ego_target.max_speed - (ego_car.speed+ego_target.accel*50))*0.25) - 1; //50 = acceleration over 1 seconds
 
     //Comfort Cost
-    double comfort_cost = 1 - exp(-10*abs(ego_car.d - (ego_target.lane*4+2)));
-    comfort_cost += 1 - exp(-10*abs(ego_car.d - ego_car.prev_d)); //prev_d is updated in behavior planner
+    double comfort_cost = 1*(1 - exp(-10*abs(ego_car.d - (ego_target.lane*4+2))));
+    comfort_cost += 1*(1 - exp(-10*abs(ego_car.d - ego_car.prev_d))); //prev_d is updated in behavior planner
     //if((int)ego_car.prev_d/4 == ego_target.lane) //only do this for lane_change cost not for keep lane cost
-    //    comfort_cost *= 1;
+    //    comfort_cost *= 50;
 
     //total cost
     double tot_cost = cost_func_weights.collision*collision_cost + cost_func_weights.reach_goal*reach_goal_cost + cost_func_weights.comfort*comfort_cost;
+    tot_cost += cost_func_weights.closest_car*closest_car_cost;
 
     return tot_cost;
 
@@ -554,7 +589,11 @@ double calculate_cost_keep_lane(vehicle_Data &ego_car, target_Data &ego_target, 
 
 double realize_keep_lane(vehicle_Data &ego_car, target_Data &ego_target, vector<vector<double>> &sensor_fusion)
 {
-    ego_target.lane = (int)(ego_car.d/4); //keep current lane
+    if(ego_car.prev_decision == "KL")
+        ego_target.lane = ego_car.prev_target_lane;
+    else
+        ego_target.lane = (int)(ego_car.d/4); //keep current lane
+
     vector<double> temp_vec = max_accel_for_keep_lane(ego_car, ego_target, sensor_fusion);
     ego_target.accel = temp_vec[0];
 
@@ -562,7 +601,8 @@ double realize_keep_lane(vehicle_Data &ego_car, target_Data &ego_target, vector<
     ego_target_speed_validation(ego_target);
 
     double min_separation_dist_next = temp_vec[1]; //this is in meters (distance along Frenet s axis)
-    double tot_cost = calculate_cost_keep_lane(ego_car, ego_target, min_separation_dist_next);
+    double closest_car_speed = temp_vec[2]; //MPH Not being used at the moment
+    double tot_cost = calculate_cost_keep_lane(ego_car, ego_target, min_separation_dist_next, closest_car_speed);
 
     return tot_cost;
 }
@@ -579,8 +619,10 @@ double calculate_cost_lane_change(vector<double> &output_KL, vector<vector<doubl
 
     double LC_max_acc = output_LC[0][0];
     double LC_dist_closest_front_next = output_LC[0][1];
+    double LC_dist_closest_frontcar_speed = output_LC[0][2];
     double LC_min_acc = output_LC[1][0];
     double LC_dist_closest_back_next = output_LC[1][1];
+    double LC_dist_closest_backcar_speed = output_LC[1][2];
 
     double collision_cost=0;
     //for back
@@ -595,24 +637,46 @@ double calculate_cost_lane_change(vector<double> &output_KL, vector<vector<doubl
 //        collision_cost = collision_cost + exp((5-LC_dist_closest_front)*1);
 //    else
 //        collision_cost = collision_cost + exp(-LC_dist_closest_front*3);
-    collision_cost += exp((15-LC_dist_closest_back_next/3)); //min separation is in meters
-    collision_cost += exp((20-LC_dist_closest_front_next/3)); //min separation is in meters
+    double back_car_speed_factor = exp(2*(LC_dist_closest_backcar_speed/ego_car.speed - 1));
+    if(back_car_speed_factor < 0.7)
+        back_car_speed_factor = 0.7;
+    else if(back_car_speed_factor > 1.5)
+        back_car_speed_factor = 1.5;
+    collision_cost += exp((back_car_speed_factor*15-LC_dist_closest_back_next/3)); //min separation is in meters
+
+    double front_car_speed_factor = exp(2*(ego_car.speed/LC_dist_closest_frontcar_speed - 1));
+    if(front_car_speed_factor < 1)
+        front_car_speed_factor = 1;
+    else if(front_car_speed_factor > 1.2)
+        front_car_speed_factor = 1.2;
+    collision_cost += exp((front_car_speed_factor*15-LC_dist_closest_front_next/3)); //min separation is in meters
     //LC_dist_closest_front_next/2 effectively divides the prediction horizon time by 2
+
+    //distance to closest vehicle cost
+    double closest_car_cost = (100-LC_dist_closest_front_next)/100; //check 100m out
+    if(closest_car_cost < 0)
+        closest_car_cost = 0;
 
    //Reach Goal Cost
     //this is still necessary even though max_accel_in_lane takes care of part of it. This helps pick the decision which gets us closest to goal.
     double reach_goal_cost = exp((ego_target.max_speed - (ego_car.speed+LC_max_acc*50))*0.25) - 1; //50 = acceleration over 1 seconds (50*0.02)
 
     //Comfort Cost
-    double comfort_cost = 1 - exp(-10*abs(ego_car.d - (ego_target.lane*4+2)));
-    comfort_cost += 1 - exp(-10*abs(ego_car.d - ego_car.prev_d)); //prev_d is updated in behavior planner
+    double comfort_cost = 1*(1 - exp(-10*abs(ego_car.d - (ego_target.lane*4+2))));
+    comfort_cost += 1*(1 - exp(-10*abs(ego_car.d - ego_car.prev_d))); //prev_d is updated in behavior planner
     if((int)ego_car.prev_d/4 == ego_target.lane)
-        comfort_cost *= 1; //50; //penalize oscillatory behavior
+        comfort_cost *= 50; //1e4; //50; //penalize oscillatory behavior
 
     //total cost
-    double KL_cost = cost_func_weights.collision*collision_cost + cost_func_weights.reach_goal*reach_goal_cost + cost_func_weights.comfort*comfort_cost;
+    double LC_cost = cost_func_weights.collision*collision_cost + cost_func_weights.reach_goal*reach_goal_cost + cost_func_weights.comfort*comfort_cost;
+    LC_cost += cost_func_weights.closest_car*closest_car_cost;
 
-    return KL_cost;
+    //for comfort even when collision cost it high
+    //if KL and LC have high total cost (e.g. near other cars) compared to comfort cost, then still we want to penalize the LC decision.
+    //Otherwise it won't be penalized.
+    LC_cost = LC_cost*1.25;
+
+    return LC_cost;
 
 }
 
@@ -639,17 +703,36 @@ double realize_lane_change(vehicle_Data &ego_car, target_Data &ego_target, vecto
 
     vector<vector<double>> output_LC = max_accel_for_lane_change(temp_ego_car, temp_ego_target, sensor_fusion);
 
-    //update target lane and speed/accel
+    //update target lane
     ego_target.lane = (int)(ego_car.d/4) + delta; //change lane
 
-    ego_target.accel = output_LC[0][0]; //0.0; //output_LC[0][0]; //dont accelerate when changing lanes
-    if(output_KL[0] < ego_target.accel)
-        ego_target.accel = output_KL[0]; //i.e. slow down so as not to collide with car infront of EGO in current lane before changing lanes
+    //update accel/speed
+    double LC_cost = 0.0;
+    ego_target.accel = output_KL[0]; //i.e. slow down so as not to collide with car infront of EGO in current lane before changing lanes
+    //cout << "Min LC dist(m): " << output_LC[1][0]*50/2.24*1*1 + ego_car.speed/2.24*1 << "\t" << output_KL[1] << endl;
+    //min distance travelled in KL state using minimum accel for 1 second
+    double temp_horizon = 0.5; //0.75 sec
+    double min_dist = output_LC[1][0]*50/2.24*temp_horizon*temp_horizon + ego_car.speed/2.24*temp_horizon;
+    if(ego_target.accel < output_LC[1][0]) //maintain min. accel to keep space with the behind car in target lane
+    {
+        if(min_dist < (output_KL[1]+output_KL[2]*temp_horizon))  //if min_dist is less than distance to car infront in KL state
+        {
+            ego_target.accel = 1.0*output_LC[1][0] + 0.0*output_KL[0]; //maintain min acceleration for the target lane
+        }
+        else
+        {
+            LC_cost = 1e16; //don't change lane
+            //keep accel from output_KL so as not to collide car infront
+        }
+    }
+    if(ego_target.accel > output_LC[0][0]) //don't accelerate more than feasible based upon car in front in the target lane
+        ego_target.accel = output_LC[0][0]; //don't accelerate more than feasible based upon car in front in the target lane
+
     ego_target.speed += ego_target.accel;
     ego_target_speed_validation(ego_target);
 
     //calculate the cost of lane change
-    double LC_cost = calculate_cost_lane_change(output_KL, output_LC, ego_car, ego_target);
+    LC_cost += calculate_cost_lane_change(output_KL, output_LC, ego_car, ego_target);
 
     return LC_cost;
 
@@ -682,7 +765,10 @@ double realize_prep_far_lane_change(vehicle_Data &ego_car, target_Data &ego_targ
     //increase cost if the car is in the center lane (just in case during transition the car is in middle lane and still in PLCFR/L
     int curr_lane = (int)(ego_car.d/4);
     if (curr_lane == 1)
-        cost_PLCF *= 100;
+    {
+        cost_PLCF *= 1e5; //dont do PLCF if in middle lane
+        cout << "PLCF in Middle Lane\n"; //just for debug as it should not come to this place ever
+    }
 //****************************************************
 
 //********************update state to prepare to change to adjacent lane********************************
@@ -707,11 +793,15 @@ double realize_prep_far_lane_change(vehicle_Data &ego_car, target_Data &ego_targ
     ego_target.accel = output_LC[0][0]; //0.0; //output_LC[0][0]; //dont accelerate when changing lanes
     if(output_KL[0] < ego_target.accel)
         ego_target.accel = output_KL[0]; //i.e. slow down so as not to collide with car infront of EGO in current lane before changing lanes
+    if(ego_target.accel < output_LC[1][0])
+        ego_target.accel = (output_LC[1][0] + output_KL[0])/2; //maintain min acceleration for the target lane
+
     ego_target.speed += ego_target.accel;
     ego_target_speed_validation(ego_target);
     //end update target lane and speed/accel
 //****************************************************
-    return cost_PLCF;
+    //update ego_target.acce so it is same as lane change function
+    return 1e16; //cost_PLCF;
 
 }
 
@@ -723,7 +813,12 @@ void maintain_KL_State(vehicle_Data &ego_car, target_Data &ego_target, target_Da
     ego_car.prev_d = ego_car.d;
 }
 
-int counter_tmp = 0;
+int PLCF_counter = 0;
+int Non_PLCF_counter = 0;
+int PLCF_lane = 99; //an invalid lane
+
+target_Data prev_ego_target;
+
 void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusion, target_Data &ego_target)
 {
     //figure out the list of possible next states
@@ -803,7 +898,9 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
         if (temp_state == "KL")
         {
             cost_ith_traj = realize_keep_lane(temp_ego_car, temp_ego_target, temp_sensor_fusion);
-             KL_target = temp_ego_target;
+            KL_target = temp_ego_target;
+            if(temp_ego_target.lane == PLCF_lane)
+                cost_ith_traj = 1e16; //very large number so as not to go in KL if in PLCF
             //cout << "KL: " << cost_ith_traj << "\n";
         }
         else if (temp_state == "LCL")
@@ -837,7 +934,7 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
 
 
     //for finding min. cost path
-    double min_cost = 1e16; //a really large number
+    double min_cost = 1e26; //a really large number
     string state_min_cost = "UNKNOWN";
     target_Data min_cost_target;
     for(int i=0; i<possible_states.size(); i++)
@@ -850,112 +947,205 @@ void behavior_Planner(vehicle_Data &ego_car, vector<vector<double>> &sensor_fusi
         }
     }
 
-    //For PLCFL or PLCFR states
-    double cost_KL, cost_LC, cost_PLCF;
-    target_Data target_data_KL, target_data_LC, target_data_PLCF;
-    string state_KL, state_LC, state_PLCF;
-    if(state_min_cost == "PLCFL" || state_min_cost == "PLCFR")
-    {
-        for(int i=0; i<possible_states.size(); i++)
-        {
-            if(possible_states[i] == "PLCFL" || possible_states[i] == "PLCFR")
-            {
-                cost_PLCF = cost_possible_states[i];
-                target_data_PLCF = target_data_possible_states[i];
-                state_PLCF = possible_states[i];
-            }
-            else if(possible_states[i] == "LCL" || possible_states[i] == "LCR")
-            {
-                cost_LC = cost_possible_states[i];
-                target_data_LC = target_data_possible_states[i];
-                state_LC = possible_states[i];
-            }
-            else if(possible_states[i] == "KL")
-            {
-                cost_KL = cost_possible_states[i];
-                target_data_KL = target_data_possible_states[i];
-                state_KL = possible_states[i];
-            }
-            else
-                cout << "Invalid State (PLCF Section): Throw Error\n";
-        }
-
-        if(cost_PLCF<1e6 && cost_PLCF<cost_KL/3 && cost_PLCF<cost_LC/3)
-        {
-            counter_tmp +=1;
-            if(cost_LC < 3e7) //if safe to change lane
-            {
-                //then change lane
-                min_cost = cost_LC;
-                min_cost_target = target_data_LC;
-                state_min_cost = state_LC;
-                cout << "\nPLCF to LC: " << counter_tmp << "\n";
-            }
-
-            else
-            {
-                //prepare lane change
-                min_cost = cost_PLCF; //this is not necessary as its redundant
-                min_cost_target = target_data_PLCF; //to adjust speed so the car fits in the gap in the adjacent lane
-                state_min_cost = state_PLCF; //state stays as PLCFL/PLCFR
-                cout << "\nPLCF\n: " << counter_tmp << "\n";
-            }
-            //so that it is directly implemented without going to KL (maintain KL) state
-            ego_car.prev_decision = state_min_cost;
-            ego_car.decision_count = 5;
-        }
-
-        else //ignore PLCF
-        {
-            if(cost_LC < cost_KL)
-            {
-                min_cost = cost_LC;
-                min_cost_target = target_data_LC;
-                state_min_cost = state_LC;
-            }
-            else //cost_KL <= cost_LC
-            {
-                min_cost = cost_KL;
-                min_cost_target = target_data_KL;
-                state_min_cost = state_KL;
-            }
-        }
-    }
+//    //For PLCFL or PLCFR states
+//    double cost_KL, cost_LC, cost_PLCF;
+//    target_Data target_data_KL, target_data_LC, target_data_PLCF;
+//    string state_KL, state_LC, state_PLCF;
+//    if(state_min_cost == "PLCFL" || state_min_cost == "PLCFR")
+//    {
+//        for(int i=0; i<possible_states.size(); i++)
+//        {
+//            if(possible_states[i] == "PLCFL" || possible_states[i] == "PLCFR")
+//            {
+//                cost_PLCF = cost_possible_states[i];
+//                target_data_PLCF = target_data_possible_states[i];
+//                state_PLCF = possible_states[i];
+//            }
+//            else if(possible_states[i] == "LCL" || possible_states[i] == "LCR")
+//            {
+//                cost_LC = cost_possible_states[i];
+//                target_data_LC = target_data_possible_states[i];
+//                state_LC = possible_states[i];
+//            }
+//            else if(possible_states[i] == "KL")
+//            {
+//                cost_KL = cost_possible_states[i];
+//                target_data_KL = target_data_possible_states[i];
+//                state_KL = possible_states[i];
+//            }
+//            else
+//                cout << "Invalid State (PLCF Section): Throw Error\n";
+//        }
+//
+//        if(cost_KL>1e9 && cost_PLCF<1e7) //&& cost_PLCF<cost_KL/3) // && cost_PLCF<cost_LC/3) //cost_KL > 1e9 && cost_LC > 1e9 &&
+//        {
+//
+//            if(cost_LC < 1e9) //if safe to change lane
+//            {
+//                //then change lane
+//                min_cost = cost_LC;
+//                min_cost_target = target_data_LC;
+//                state_min_cost = state_LC;
+//                cout << "\nPLCF to LC: " << PLCF_counter << "\t" << min_cost << "\n";
+//            }
+//
+//            else
+//            {
+//                //prepare for lane change
+//                min_cost = cost_PLCF; //this is not necessary as its redundant, but added for code readability
+//                min_cost_target = target_data_PLCF; //to adjust speed so the car fits in the gap in the adjacent lane
+//                state_min_cost = state_PLCF; //state stays as PLCFL/PLCFR
+//                cout << "\nPLCF: " << PLCF_counter << "\t" << min_cost << "\n";
+//            }
+//
+//            PLCF_counter +=1;
+//            if(PLCF_counter > 3)
+//            {
+//                Non_PLCF_counter = 0;
+//                PLCF_lane = target_data_PLCF.lane;
+//            }
+//            //so that it is directly implemented without going to KL (maintain KL) state
+//            ego_car.prev_decision = state_min_cost;
+//            ego_car.decision_count = 5;
+//
+//        }
+//
+//        else //ignore PLCF
+//        {
+//            if(cost_LC < cost_KL)
+//            {
+//                min_cost = cost_LC;
+//                min_cost_target = target_data_LC;
+//                state_min_cost = state_LC;
+//            }
+//            else //cost_KL <= cost_LC
+//            {
+//                min_cost = cost_KL;
+//                min_cost_target = target_data_KL;
+//                state_min_cost = state_KL;
+//            }
+//
+//            cout << "\nIgnore PLCF: " << Non_PLCF_counter << "\t" << min_cost << "\n";
+//
+//            Non_PLCF_counter +=1;
+//            if(Non_PLCF_counter > 3)
+//            {
+//                PLCF_counter = 0;
+//                PLCF_lane = 99; //a non-existent lane number
+//            }
+//        }
+//    }
+//
+//    else //if min cost state is not PLCFL/R
+//    {
+//        Non_PLCF_counter +=1;
+//        if(Non_PLCF_counter > 3)
+//        {
+//            PLCF_counter = 0;
+//            PLCF_lane = 99; //a non-existent lane number
+//        }
+//
+//        //cout << "\Min Cost is not PLCF: " << Non_PLCF_counter << "\t" << min_cost << "\n";
+//
+//    }
 
 
     //cout << possible_states[traj_min_cost] << "\n\n";
-
-    if(min_cost < 5e9) //&& min_cost < (0.8*ego_car.prev_cost)) //so as to avoid oscillatory behavior if all the costs are similar
+    if(min_cost < 1e9)
     {
-        if(ego_car.prev_decision == state_min_cost)
-        {
-            ego_car.decision_count += 1;
-            if(ego_car.decision_count >= 5) //so as to only take a decision if its consistent and not random due to bad data
-            {
-                ego_target = min_cost_target;
-                ego_car.state = state_min_cost;
-                ego_car.prev_d = ego_car.d;
-            }
-            else
-            {
-                maintain_KL_State(ego_car, ego_target, KL_target);
-            }
-        }
-        else
-        {
-            maintain_KL_State(ego_car, ego_target, KL_target);
-            ego_car.decision_count = 0;
-        }
+        ego_target = min_cost_target;
+        ego_car.state = state_min_cost;
+        ego_car.prev_d = ego_car.d;
 
         ego_car.prev_decision = state_min_cost;
+        ego_car.prev_target_lane = ego_target.lane;
     }
 
     else
     {
         maintain_KL_State(ego_car, ego_target, KL_target);
-        ego_car.prev_decision = "Keep Prev State"; //use this even though its KL
-        ego_car.decision_count = 0;
+
+        ego_car.prev_decision = "KL";
+        ego_car.prev_target_lane = ego_target.lane;
     }
+
+
+//    if(min_cost < 1e9) //&& min_cost < (0.8*ego_car.prev_cost)) //so as to avoid oscillatory behavior if all the costs are similar
+//    {
+//        if(ego_car.prev_decision == state_min_cost)
+//        {
+//            ego_car.decision_count += 1;
+//            if(ego_car.decision_count >= 10) //so as to only take a decision if its consistent and not random due to bad data
+//            {
+//                ego_target = min_cost_target;
+//                ego_car.state = state_min_cost;
+//                ego_car.prev_d = ego_car.d;
+//            }
+//            else
+//            {
+//                maintain_KL_State(ego_car, ego_target, KL_target);
+//                //maintain prev state
+//                //ego_target = prev_ego_target;
+//            }
+//        }
+//        else
+//        {
+//            maintain_KL_State(ego_car, ego_target, KL_target);
+//            //ego_target = prev_ego_target;
+//            ego_car.decision_count = 0;
+//        }
+//
+//        ego_car.prev_decision = state_min_cost;
+//    }
+//
+//    else
+//    {
+//        maintain_KL_State(ego_car, ego_target, KL_target);
+//        ego_car.prev_decision = "Keep Prev State"; //use this even though its KL
+//        //don't update prev decision. keep as is.
+//        //ego_target = prev_ego_target;
+//        ego_car.decision_count = 0;
+//    }
+
+    //prev_ego_target = ego_target;
+
+
+//    if(min_cost < 1e9) //&& min_cost < (0.8*ego_car.prev_cost)) //so as to avoid oscillatory behavior if all the costs are similar
+//    {
+//        if(ego_car.prev_target_lane == min_cost_target.lane)
+//        {
+//            //cout << "\nHERE\n";
+//            ego_car.decision_count += 1;
+//            if(ego_car.decision_count >= 5) //so as to only take a decision if its consistent and not random due to bad data
+//            {
+//                //cout << "\nHERE\n";
+//                ego_target = min_cost_target;
+//                ego_car.state = state_min_cost;
+//                ego_car.prev_d = ego_car.d;
+//            }
+//            else
+//            {
+//                maintain_KL_State(ego_car, ego_target, KL_target);
+//            }
+//
+//        }
+//        else
+//        {
+//            maintain_KL_State(ego_car, ego_target, KL_target);
+//            ego_car.decision_count = 0;
+//        }
+//
+//        ego_car.prev_target_lane = min_cost_target.lane;
+//    }
+//
+//    else
+//    {
+//        maintain_KL_State(ego_car, ego_target, KL_target);
+//        ego_car.prev_target_lane = ego_target.lane; //this is not min_cost_target lane
+//        ego_car.decision_count = 0;
+//    }
+
+    cout << "Target: " << ego_target.lane << "\t" << (int)ego_car.d/4 << "\t" << ego_car.state << "\t" << ego_target.accel << endl;
 
 }
 
@@ -971,8 +1161,8 @@ int main() {
   vector<double> map_waypoints_dy;
 
   // Waypoint map to read from
-  //string map_file_ = "../data/highway_map_bosch1.csv"; //Bosch Challenge
-  string map_file_ = "../data/highway_map.csv"; //Path Planning Project
+  string map_file_ = "../data/highway_map_bosch1.csv"; //Bosch Challenge
+  //string map_file_ = "../data/highway_map.csv"; //Path Planning Project
   // The max s value before wrapping around the track back to 0
   double max_s = 6945.554;
 
