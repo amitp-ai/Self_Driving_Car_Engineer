@@ -2,82 +2,64 @@
 
 import math
 import rospy
-from std_msgs.msg import Float64
-from sensor_msgs.msg import JointState
+from sensor_msgs.msg import Image, JointState
 from simple_arm.srv import *
 
-def at_goal(pos_j1, goal_j1, pos_j2, goal_j2):
-    tolerance = .05
-    result = abs(pos_j1 - goal_j1) <= abs(tolerance)
-    result = result and abs(pos_j2 - goal_j2) <= abs(tolerance)
-    return result
 
-def clamp_at_boundaries(requested_j1, requested_j2):
-    clamped_j1 = requested_j1
-    clamped_j2 = requested_j2
+class LookAway(object):
+    def __init__(self):
+        rospy.init_node('look_away')
 
-    min_j1 = rospy.get_param('~min_joint_1_angle', 0)
-    max_j1 = rospy.get_param('~max_joint_1_angle', 2*math.pi)
-    min_j2 = rospy.get_param('~min_joint_2_angle', 0)
-    max_j2 = rospy.get_param('~max_joint_2_angle', 2*math.pi)
+        self.sub1 = rospy.Subscriber('/simple_arm/joint_states', 
+                                     JointState, self.joint_states_callback)
+        self.sub2 = rospy.Subscriber("rgb_camera/image_raw", 
+                                     Image, self.look_away_callback)
+        self.safe_move = rospy.ServiceProxy('/arm_mover/safe_move', 
+                                     GoToPosition)
 
-    if not min_j1 <= requested_j1 <= max_j1:
-        clamped_j1 = min(max(requested_j1, min_j1), max_j1)
-        rospy.logwarn('j1 is out of bounds, valid range (%s,%s), clamping to: %s',
-                      min_j1, max_j1, clamped_j1)
+        self.last_position = None
+        self.arm_moving = False
 
-    if not min_j2 <= requested_j2 <= max_j2:
-        clamped_j2 = min(max(requested_j2, min_j2), max_j2)
-        rospy.logwarn('j2 is out of bounds, valid range (%s,%s), clamping to: %s',
-                      min_j2, max_j2, clamped_j2)
+        rospy.spin()
 
-    return clamped_j1, clamped_j2
+    def uniform_image(self, image):
+        return all(value == image[0] for value in image)
 
-def move_arm(pos_j1, pos_j2):
-    time_elapsed = rospy.Time.now()
-    j1_publisher.publish(pos_j1)
-    j2_publisher.publish(pos_j2)
+    def coord_equal(self, coord_1, coord_2):
+        if coord_1 is None or coord_2 is None:
+            return False
+        tolerance = .0005
+        result = abs(coord_1[0] - coord_2[0]) <= abs(tolerance)
+        result = result and abs(coord_1[1] - coord_2[1]) <= abs(tolerance)
+        return result
 
-    while True:
-        joint_state = rospy.wait_for_message('/simple_arm/joint_states', JointState)
-        if at_goal(joint_state.position[0], pos_j1, joint_state.position[1], pos_j2):
-            time_elapsed = joint_state.header.stamp - time_elapsed
-            break
+    def joint_states_callback(self, data):
+        if self.coord_equal(data.position, self.last_position):
+            self.arm_moving = False
+        else:
+            self.last_position = data.position
+            self.arm_moving = True
 
-    return time_elapsed
+    def look_away_callback(self, data):
+        if not self.arm_moving and self.uniform_image(data.data):
+            try:
+                rospy.wait_for_service('/arm_mover/safe_move')
+                msg = GoToPositionRequest()
+                msg.joint_1 = 1.57
+                msg.joint_2 = 1.57
+                response = self.safe_move(msg)
 
-def handle_safe_move_request(req):
-    rospy.loginfo('GoToPositionRequest Received - j1:%s, j2:%s',
-                   req.joint_1, req.joint_2)
-    clamp_j1, clamp_j2 = clamp_at_boundaries(req.joint_1, req.joint_2)
-    time_elapsed = move_arm(clamp_j1, clamp_j2)
+                rospy.logwarn("Camera detecting uniform image. \
+                               Elapsed time to look at something nicer:\n%s", 
+                               response)
 
-    return GoToPositionResponse(time_elapsed)
+            except rospy.ServiceException, e:
+                rospy.logwarn("Service call failed: %s", e)
 
-def mover_service():
-    rospy.init_node('arm_mover')
-    service = rospy.Service('~safe_move', GoToPosition, handle_safe_move_request)
-    rospy.spin()
+
 
 if __name__ == '__main__':
-    j1_publisher = rospy.Publisher('/simple_arm/joint_1_position_controller/command',
-                                   Float64, queue_size=10)
-    j2_publisher = rospy.Publisher('/simple_arm/joint_2_position_controller/command',
-                                   Float64, queue_size=10)
-
-    try:
-        mover_service()
+    try: 
+        LookAway()
     except rospy.ROSInterruptException:
         pass
-    
-##################################
-
-  <!-- The arm mover node -->
-  <node name="arm_mover" type="arm_mover" pkg="simple_arm">
-    <rosparam>
-      min_joint_1_angle: 0
-      max_joint_1_angle: 1.57
-      min_joint_2_angle: 0
-      max_joint_2_angle: 1.0
-    </rosparam>
-  </node>
