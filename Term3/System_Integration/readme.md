@@ -69,3 +69,15 @@ if __name__ == '__main__':
         mover_service()
     except rospy.ROSInterruptException:
         pass
+    
+##################################
+
+  <!-- The arm mover node -->
+  <node name="arm_mover" type="arm_mover" pkg="simple_arm">
+    <rosparam>
+      min_joint_1_angle: 0
+      max_joint_1_angle: 1.57
+      min_joint_2_angle: 0
+      max_joint_2_angle: 1.0
+    </rosparam>
+  </node>
