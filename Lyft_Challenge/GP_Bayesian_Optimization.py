@@ -39,7 +39,9 @@ def compute_and_plot_mu_var(x_dist, f_dist, mu_dist, L_dist, to_plot=True):
 
 	#True Mean and Variance (analytical approach)
 	mu = mu_dist
-	var = np.dot(L_dist*L_dist,np.ones((n,1)))
+	L_dist_temp = L_dist*L_dist #elementwise multiplication
+	var_temp = np.ones((n,1)) #variance (it is 1 in this example) of each discretized point (independent of each other)
+	var = np.dot(L_dist_temp,var_temp)
 	sigma = np.sqrt(var)
 	#
 	upper_bound = mu + sigma
@@ -76,7 +78,7 @@ y_gt = gt_function(X_prior)
 plt.plot(X_prior,y_gt)
 plt.show()
 
-
+# Find the Posterior for a Gaussian Process Prior #
 def train_GP(X_star, X_train, Y_train):
 	#Training
 	# X_train and Y_train are 1D vectors
@@ -175,3 +177,76 @@ for epoch in range(num_epochs):
 	# print(Y_train,'\n')
 
 	# break
+
+
+# Used for Hyperparameter Optimization for Neural Networks #
+# Just make sure the variance of the prior is large enough to cover the accuracy range of the FCN #
+print("Test for FCN Hyperparameter Tuning Using Bayesian Optimization")
+X_star = np.linspace(-5, 5, n).reshape(-1,1) # Test points (Discretization of the Hyperparameter space)
+X_train = np.array([[-1],[0],[1],[4]]) #samples to evaluate
+Y_train = np.array([[1.5],[1.9],[-2.5],[0]]) #accuracy results of the above sample evaluations
+
+mu_posterior, L_posterior = train_GP(X_star, X_train, Y_train)
+mu, sigma = compute_and_plot_mu_var(X_star, 0, mu_posterior, L_posterior, to_plot=True)	
+upper_conf_bound = mu+sigma
+ucb_pos = np.argmax(upper_conf_bound)
+Next_X_to_Sample = X_star[ucb_pos][0]
+Predicted_Y_of_Next_X_to_Sample = np.max(upper_conf_bound)
+print(Next_X_to_Sample)
+print(Predicted_Y_of_Next_X_to_Sample)
+
+
+'''
+### Writeup for medium article: ###
+
+INTRODUCTION
+Image segmentation is an important subfield of computer vision. With the advent of Deep Learning, most areas of computer vision have been significantly impacted. Image segementation is no exception. This article focuses on applying deep learning based image segmentation for autonomous vehicle applications. In particular, this article discusses my implementation of the Lyft-Udacity Image Segmentation challenge that took place earlier this month. The architecture used is based upon UC Berkeley's original FCN architecture. In addition to the core FCN architecture, this article also utilizes Bayesian Optimization for hyperparameter tunining, particularly for the regularization parameter.
+
+The dataset provided for this competiion is from the Carla simulator. See here for more details. The datased is preprocessed to only include three classes: vehicle, road, and everything else. The dataset is divided in to training, validation, and test dataset. To help the model generalize better (i.e. improve FScore for the test dataset), data augmentation is done. In particular, images are randomly flipped, rotated with a variance of 30 degrees, the image color is randomly changed. This allows the model to learn from a wider variety of images.
+
+
+ARCHITECTURE
+The architecture used for image segmentaiton is based upon UC Berkeley's FCN8 architecture. It basically takes a VGG16 architecture and replaces the fully-connected layers with fully-convolutional (FCN) layers. The output of the fully convolutional layer is then upsampled back to the input image's dimension using a learnable kernel. To help with improved accuracy in detecting smaller scale components, there are a couple skip layers which upsamples upsamples the output from earlier layers in the VGG16 network and combines/fuses (using matrix addition) all of them together at different places. The below diagram illustrates this.
+
+The performance metric used is the weighted FScore (which basically combines precision and recall according to the below equation). Given that there are fewer cars in the images compared to roads and fewer roads compared to everything else, the dataset is skewed in favor of everything else. To address it, a weighted cross entropy loss is used. 
+
+BAYESIAN OPTIMIZATION
+One of the challenges in training deep learning models (e.g. FCNs) is hyperparameter (e.g. learning rate, regularization co-efficient, etc) optimizations.
+What is typically done is to either do a grid search on the hyperparameters or randomly sample different values of the hyperparameters and train the FCN for a fixed number of epochs. Thereafter test the trained model on a validation dataset, and the hyperparameter set with the highest validation accuracy is chosen as the best set of hyperparameters.
+
+The major problem with the above approach is that it takes pretty long time to train FCNs. And so it is very expensive in terms of training time (and the incurred cost of compute time on the cloud) to try many different values of hyperparameters to find the optimal hyperparameter.
+
+While using the backpropagation algorithm, we can in theory compute the derivative of the loss with respect to some of the hyperparameters (e.g. regularization factor, learning rate), it requires multiple iterations of gradient descent to find the optimal hyperparameter. And as we have already discussed above, each iteration involves training the neural newtrok for a certain number of epochs, and thus will take a very long time to find the optimal hyperparameter in this manner.
+
+Again, given it is very time consuming to train a neural network for each set of hyperparameters, what we would ideally like to do is find the optimal value of the hyperparameter without needing to re-train the network many number of times using various different hyperparameters.
+
+One way to address it is using Bayesian Optimization [2]. In this method, we construct an auxiliary function that models the mathematical relationship between the hyperparameters and the trained network's accuracy, but it is alot easier to evaluate. The auxiliary function is consturcted using a Gaussian process (i.e. a Gaussian distribution over functions). The impetus for using a Gaussian process is that is gives us both the mean and the variance (i.e. a proxy for confidence interval) of the auxiliary; and together, they can be fed into the Upper Confidence Bound (UCB) algorithm (or even Thompson sampling) to determine the next set of hyperparameters to evaluate. This allows us to find the optimal hyperparameter while minimizing the number of hyperparameter trials required. Because we are intelligently deciding which hyperparameters to try next, it is much more efficient (and thus faster) in finding the optimal hyperparameter than doing grid search or random trials.
+
+One downside of Bayesian optimization using Gaussian processes is that it suffers from the curse of dimensionality for higher dimensional spaces. This is because we have to discretize the hyperparameter space. However, for many machine learning applications, the hyperparameter space is inherentlty low dimensional. So this is not a problem in most cases, but just wanted to make the reader aware of the method's limitations.
+
+As an aside, we could theoretically use Bayesian optimization to update the weights of the neural network without having to compute its gradients and be able to find the global optimum much faster. However, because there are millions of weights involved, the curse of dimensionality alluded earlier makes it computationally infeasible. Hence, it is not used to update the weights of the neural network.
+
+For those familiar with Reinforcement Learning, the above mentioned Bayesian Optimization algorithm using Gaussian Processes is basically similar to the multi-armed bandit problem studied in Reinforcement Learning, where each discretized hyperparameter is a bandit arm and adjacent bandit arms are correlated.
+
+
+To Do:
+1. Show the hyperparameter values tried using Bayesian Optimization
+2. Show a few examples of data augmentation
+3. Show final result FScore and IOU
+4. Show a few examples of the final result from the test set
+5. checkout the Medium article by the person (Asad Zia) who won the challenge
+
+Conclusion
+A VGG16 based FCN8 network was trained on the Udacity-Lyft challenge dataset and a final FScore of XXX was achieved. The speed of the netwrok is about 4FPS and thus more improvement on the speed front is a future goal. Moreover, finding the optimal regularization parameter was performed using Bayesian Optimization. In the future, instead of using a UCB based acquisition function, Thompson sampling can be tried to more quickly find the optimal hyperparameter. Another thing that can be addressed in the future is to perform Bayesian Optimization on all the hyperparameters used (i.e. regularization factor, learning rate, and batch size). While we can run three independent Bayesian Optimization algorithms (one for each hyperparameter), it assumes no correlation between the hyperparameters when finding the optimal hyperparameter, which is not a valid assumption. Thus a better way to do it is to perform Bayesian optimization on the three variables (i.e. while taking into account their correlations). For this project on the regularization parameter was optimized using Bayesian optimization beause the learning rate and batch size were easier to fine tune by trial-and-error. But it can certainly be combined with the regularization parameter to perform Bayesian optimization on all the hyperparameters.
+
+ All of the code is available here: <Link to my Github Lyft Challenge project page>.
+
+
+REFERENCES:
+[1] Berkeley FCN Paper
+[2] Nando De Freitas CS540 Bayesian Optimization Notes
+
+
+'''
+
+print("End of Program")
