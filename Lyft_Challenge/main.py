@@ -9,7 +9,7 @@ from datetime import timedelta
 import time
 import numpy as np
 
-#THIS CODE IMPLETEMENTS UCB'S FCN NETWORK FOR SEMANTIC SEGMENTATION#
+#THIS CODE IMPLEMENTS UCB'S FCN NETWORK FOR SEMANTIC SEGMENTATION#
 
 # # Check TensorFlow Version
 # assert LooseVersion(tf.__version__) >= LooseVersion('1.0'), 'Please use TensorFlow version 1.0 or newer.  You are using {}'.format(tf.__version__)
