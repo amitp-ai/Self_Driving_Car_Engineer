@@ -1,1 +1,1 @@
-#for traffic light detection
+# Traffic light detection using SSD
