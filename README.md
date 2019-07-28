@@ -20,7 +20,7 @@ The Self-Driving Car Engineer Nano-Degree is an online certification intended to
 * Projects 1 and 2: Combine lidar and radar data to track objects in the environment using Kalman filters (both Extended and Unscented Kalman Filters (EKF and UKF)
 
 **Localization**
-* Project 3: Locate a car relative to the world (Align a car and sensors to the map). Use a particle filter to localize the vehicle.
+* Project 3: Locate a car relative to the world map. Use a particle filter to localize the vehicle.
 
 **Control**
 * Project 4: Use PID control to steer the car as well as adjust brake/acceleration inorder to follow a reference trajectory.
