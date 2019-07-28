@@ -31,7 +31,7 @@ The Self-Driving Car Engineer Nanodegree is an online certification intended to 
 
 ## Term 3: Path Planning, Semantic Segmentation, System Integration (Started May 2017)
 **Path Planning**
-* Project 1: Generate a smooth trajectory (as well as proper speed) to navigate the vehicle on a highway while avoiding obstacles and other vehicles. Additionally, finding a sequence of steps in a maze (navigating cities, parking lots, etc)
+* Project 1: Generate a smooth trajectory (as well as proper speed) to navigate the vehicle on a highway while avoiding obstacles and other vehicles. Additionally, find a sequence of steps in a maze to navigate cities, parking lots, etc.
 
 **Semantic Segmentation**
 * Project 2: Using FCN based semantic segmentation architecture to classify each pixel in the image into road, car, or everything else category.
