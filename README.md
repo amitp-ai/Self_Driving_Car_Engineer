@@ -26,7 +26,7 @@ The Self-Driving Car Engineer Nano-Degree is an online certification intended to
 * Project 4: Use PID control to steer the car as well as adjust brake/acceleration inorder to follow a reference trajectory.
 * Project 5: Use MPC to develop a more advanced controller that even handled hardware response delays.
 
-## Term 3: Path Planning, Semantic Segmentation, Put code on an actual car (Started May 2017)
+## Term 3: Path Planning, Semantic Segmentation, Capstone (Started May 2017)
 **Path Planning**
 * Project 1: Generate a smooth trajectory (as well as proper speed) to navigate a vehicle on a highway while avoiding obstacles and other vehicles. Additionally, finding a sequence of steps in a maze (navigating cities, parking lots)
 
