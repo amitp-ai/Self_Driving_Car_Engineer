@@ -29,7 +29,7 @@ The Self-Driving Car Engineer Nanodegree is an online certification intended to 
 * Project 5: Use MPC to develop a more advanced controller that even handled hardware response delays.
 
 
-## Term 3: Path Planning, Semantic Segmentation, System Integration (Started May 2017)
+## Term 3: Path Planning, Semantic Segmentation, and System Integration (Started May 2017)
 **Path Planning (C++)**
 * Project 1: Generate a smooth trajectory (as well as proper speed) to navigate the vehicle on a highway while avoiding obstacles and other vehicles. Additionally, find a sequence of steps in a maze to navigate cities, parking lots, etc.
 
