@@ -29,7 +29,7 @@ The Self-Driving Car Engineer Nanodegree is an online certification intended to 
 * Project 5: Use MPC to develop a more advanced controller that even handled hardware response delays.
 
 
-## Term 3: Path Planning, Semantic Segmentation, Capstone (Started May 2017)
+## Term 3: Path Planning, Semantic Segmentation, System Integration (Started May 2017)
 **Path Planning**
 * Project 1: Generate a smooth trajectory (as well as proper speed) to navigate a vehicle on a highway while avoiding obstacles and other vehicles. Additionally, finding a sequence of steps in a maze (navigating cities, parking lots)
 
@@ -37,4 +37,4 @@ The Self-Driving Car Engineer Nanodegree is an online certification intended to 
 * Project 2: Using FCN based semantic segmentation architecture to classify each pixel in the image into road, car, or everything else category.
 
 **Capstone Project**
-* Project 3: A team project to run on a real self-driving car. My task was to develop a traffic light detection module using SSD. The network would output the location of the traffic light (bounding box) as well as the traffic light state (red, green, yellow, or not working).
+* Project 3: A system integration team project to run on a real self-driving car. My task was to develop a traffic light detection module using SSD. The network would output the location of the traffic light (bounding box) as well as the traffic light state (red, green, yellow, or not working).
