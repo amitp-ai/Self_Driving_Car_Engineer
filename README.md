@@ -26,7 +26,7 @@ The Self-Driving Car Engineer Nanodegree is an online certification intended to 
 
 **Control (C++)**
 * Project 4: Use PID control to steer the car as well as adjust brake/acceleration inorder to follow a reference trajectory.
-* Project 5: Use MPC to develop a more advanced controller that even handled hardware response delays.
+* Project 5: Use Model Predictive Control (MPC) to develop a more advanced controller that can handle hardware response delays.
 
 
 ## Term 3: Path Planning, Semantic Segmentation, and System Integration (Started May 2017)
