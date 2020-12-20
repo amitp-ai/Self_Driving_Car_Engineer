@@ -1,5 +1,5 @@
 # Self-Driving Car Engineer Nanodegree
-This repository contains all the projects I completed as part of Udacity's self-driving car engineer nanodegree. 
+This repository contains all the projects I completed as part of the first cohort of the Udacity self-driving car engineer nanodegree. 
 
 The Self-Driving Car Engineer Nanodegree is an online certification intended to prepare students to become self-driving car engineers. The program was developed by Udacity in partnership with Mercedes-Benz, Nvidia, Uber ATG, amongst others.
 
