@@ -9,13 +9,13 @@ As detailed below, the program covered a wide range of topics including traditio
 
 ## Term 1: Computer Vision and Deep Learning (Fall 2016)
 **Traditional Computer Vision (Python)**
-* Project 1: Finding Lane Lines (Intro to Computer Vision): Introductory project which used basic computer vision techniques like canny edge and hough transforms to detect lane lines
-* Project 4: Advanced Lane Lines (Computer Vision): Use of image thresholding, warping and fitting lanes lines to develop a more robust method of detecting lane lines on a road
-* Project 5: Vehicle Detection (Computer Vision): Use of HOG and SVM to detect vehicles on a road
+* Project 1 - Finding Lane Lines (Intro to Computer Vision): Introductory project which used basic computer vision techniques like canny edge and hough transforms to detect lane lines
+* Project 4 - Advanced Lane Lines (Computer Vision): Use of image thresholding, warping and fitting lanes lines to develop a more robust method of detecting lane lines on a road
+* Project 5 - Vehicle Detection (Computer Vision): Use of HOG and SVM to detect vehicles on a road
 
 **Deep Learning (Python/Tensorflow)**
-* Project 2: Traffic Sign Classifier (Deep Learning) - Train a convolution neural network capable of detecting road side traffic signs.
-* Project 3: Behavioral Cloning (Deep Learning): Train a car to drive in a 3D simulator using a deep neural network (input to the network is an RGB image and the output is the corresponding steering angle).
+* Project 2 - Traffic Sign Classifier (Deep Learning): Train a convolution neural network capable of detecting road side traffic signs.
+* Project 3 - Behavioral Cloning (Deep Learning): Train a car to drive in a 3D simulator using a deep neural network (input to the network is an RGB image and the output is the corresponding steering angle).
 
 
 ## Term 2: Sensor Fusion, Localization, and Control (Spring 2017)
