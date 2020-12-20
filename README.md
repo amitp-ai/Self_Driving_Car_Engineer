@@ -40,4 +40,4 @@ As detailed below, the program covered a wide range of topics including traditio
 * Project 2: Using Fully-Convolutional Network (FCN) based semantic segmentation architecture, classified each pixel in the image into road, car, or everything else category.
 
 **Capstone Project (C++ and Python/Tensorflow)**
-* Project 3: A system integration team project to run on a real self-driving car. My task was to develop a traffic light detection module using the Single-Shot Detection (SSD) network. The network would output the location of the traffic light (bounding box) as well as the traffic light state (red, green, yellow, or not working).
+* Project 3: A system integration team project to run on Udacity's real self-driving car. My task was to develop a traffic light detection module using the Single-Shot Detection (SSD) network. The network would output the location of the traffic light (bounding box) as well as the traffic light state (red, green, yellow, or not working).
