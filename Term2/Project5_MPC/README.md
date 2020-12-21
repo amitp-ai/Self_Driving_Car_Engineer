@@ -33,11 +33,11 @@ The key to solving MPC equation is to define the cost properly. This requires a 
 
 The cost function to be minimized is a quadratic cost function of cte, epsi, difference between current and reference speed, actuations, as well as the rate of change of actuations. cte and epsi are given large weights as well as the rate of change of steeringing angle and throttle for a smooth and accurate controller.
 
- for (int i = 0; i < N; i++) {
-      fg[0] += cost_cte* CppAD::pow(vars[cte_start + i] - ref_cte, 2);
-      fg[1] += cost_eps* CppAD::pow(vars[epsi_start + i] - ref_epsi, 2);
-      fg[2] += cost_v* CppAD::pow(vars[v_start + i] - ref_v, 2);
-    }
+	 for (int i = 0; i < N; i++) {
+	      fg[0] += cost_cte* CppAD::pow(vars[cte_start + i] - ref_cte, 2);
+	      fg[1] += cost_eps* CppAD::pow(vars[epsi_start + i] - ref_epsi, 2);
+	      fg[2] += cost_v* CppAD::pow(vars[v_start + i] - ref_v, 2);
+	    }
 
 The reference CTE is set to zero, reference epsi is set to zero and ref velocity set to 40. N is the no. of timesteps we are forecasting into the future. The errors were all multiplied by factors (cost_cte, cost_eps etc) which were very important for smooth driving in the simulator and these multipliers were tuned by trying various values
 
@@ -45,16 +45,16 @@ In order to speedup the optimization process, the the initial values of actuatio
 
 The cost also depends on the actuator values and the change in actuation from previous time step. This ensures smooth changes in actuator values. Again the multipliers associated with them were tuned by looking at performance in the simulator. 
 
-for (int i = 0; i < N - 1; i++) {
-      fg[0] += cost_current_delta*CppAD::pow(vars[delta_start + i], 2);
-      fg[1] += cost_current_a*CppAD::pow(vars[a_start + i], 2);
-    }
+	for (int i = 0; i < N - 1; i++) {
+	      fg[0] += cost_current_delta*CppAD::pow(vars[delta_start + i], 2);
+	      fg[1] += cost_current_a*CppAD::pow(vars[a_start + i], 2);
+	    }
 
-    // Minimize the value gap between sequential actuations.
-    for (int i = 0; i < N - 2; i++) {
-      fg[0] += cost_diff_delta* CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
-      fg[1] += cost_diff_a*CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2);
-    }
+	    // Minimize the value gap between sequential actuations.
+	    for (int i = 0; i < N - 2; i++) {
+	      fg[0] += cost_diff_delta* CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
+	      fg[1] += cost_diff_a*CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2);
+	    }
 
 **MPC Setup**
 As described in the lectures, the following are the steps for executing MPC
