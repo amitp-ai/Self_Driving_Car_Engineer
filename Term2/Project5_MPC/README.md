@@ -1,6 +1,4 @@
-# CarND-Controls-MPC
-Self-Driving Car Engineer Nanodegree Program
-
+# Model Predictive Control (MPC)
 The project can be run using cmake and make as per the instructions provided.
 
 ## 1. The model Description
