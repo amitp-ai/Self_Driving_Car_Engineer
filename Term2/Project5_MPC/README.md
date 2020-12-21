@@ -22,11 +22,11 @@ The actuation includes throttle (controls acceleration) and steering angle (cont
 **Update Equations**
 The update equations are basically kinematic equations of motion used to set constaints on the optimization problem so that the optimization takes in to account the vehicle dynamics.
 
-  x = x + v*cos(ψ)* dt
-  y = y + v sin(psi) dt
-  v=v+a∗dt
-  a in [-1,1]
-  ψ=ψ+(v/L_f)*δ∗dt
+	  x = x + v*cos(ψ)* dt
+	  y = y + v sin(psi) dt
+	  v=v+a∗dt
+	  a in [-1,1]
+	  ψ=ψ+(v/L_f)*δ∗dt
 
 **Cost Function**
 The key to solving MPC equation is to define the cost properly. This requires a fair bit of tuning. The solver tries to minimize the cost. 
