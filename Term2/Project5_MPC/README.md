@@ -1,41 +1,43 @@
 # Model Predictive Control (MPC)
-The project can be run using cmake and make as per the instructions provided.
 
-## 1. The model Description
+**summary**
+MPC is an optimal controller where we have a model of the system we are trying to control. At each time step, we calculate the best set of control actions by the controller that minimizes a predefined cost function over a specific time horizon. The goal of the optimizer is to minimize the cost function while satisfying constraints such as system dynamics, actuator limitations, etc. We pick the control actions for the most immediate time step and then repeat the process.
+
+## 1. The Model
+The model is composed of a few different things:
+
 **State**
-Since the waypoints are in map coordinates, they are first transformed in to vehicle coordinates (by translation followed by rotation).
-
 Given MPC is a constrained optimization problem at every time step over some finite time horizon, having a good vehicle dynamics model is very important. However, there is tradeoff between model accuracy and computation speed. And given the optimization problem is to be solved at every point in time, the model cannot be very complicated due to computational challenges. For this project, the model used is the basic kinematics model presented in the lectures. It is a state-space based kinematics model with the following components constituting the state:
 	a. x position of the car
 	b. y position of the car
-	c. psi (orientation) of the car
+	c. ψ (orientation) of the car
 	d. v (velocity/speed) of the car
 	e. cte (cross track error) is the difference between the car position and the reference trajectory. This error needs to be minimized.
-	f. epsi (psi error) is the difference between the car's orientation and the desired orientation. This is to be minimized.
-The variables x, y, ψ and v are received from the simulator. The x, y position are in the map coordinates and are converted into the vehicle coordinate system. 
+	f. epsi (psi error) is the difference between the car's orientation and the desired/target orientation. This is to be minimized.
+The variables x, y, ψ and v are received from the simulator. The x, y position (waypoints) are in the map coordinate system, so they are first transformed into the vehicle coordinate system (by translation followed by rotation).
 
 **Actuators**
-The actuation includes throttle (controls acceleration/braking) and steering angle (controls orientation) of the car. These are obtained from the result of the solver and passed to the simulator.
+The actuation includes throttle (controls acceleration/braking) and steering angle (controls orientation) of the car. These are obtained from the result of the optimizer/solver and passed to the simulator.
 
-**Update Equations**
-The update equations are basically kinematic equations of motion used to set constaints on the optimization problem so that the optimization takes in to account the vehicle dynamics.
+**Update/State Equations**
+The update equations are basically kinematic equations of motion used to set constaints on the optimization problem so that the optimization takes in to account the vehicle dynamics. They are basically discrete-time difference-equations for state-space based representation.
 
 	  x = x + v*cos(ψ)* dt
 	  y = y + v sin(psi) dt
 	  v=v+a∗dt
-	  a in [-1,1]
+	  a in the range [-1,1]
 	  ψ=ψ+(v/L_f)*δ∗dt
 
 **Cost Function**
 The key to solving MPC equation is to define the cost properly. This requires a fair bit of tuning. The solver tries to minimize the cost. 
 
-The cost function to be minimized is a quadratic cost function of cte, epsi, difference between current and reference speed, actuations, as well as the rate of change of actuations. cte and epsi are given large weights as well as the rate of change of steering angle and throttle for a smooth and accurate controller.
-
-	 for (int i = 0; i < N; i++) {
-	      fg[0] += cost_cte* CppAD::pow(vars[cte_start + i] - ref_cte, 2);
-	      fg[1] += cost_eps* CppAD::pow(vars[epsi_start + i] - ref_epsi, 2);
-	      fg[2] += cost_v* CppAD::pow(vars[v_start + i] - ref_v, 2);
-	    }
+The cost function to be minimized is a quadratic cost function of:
+- cte
+- epsi
+- difference between current and reference speed
+- throttle and steering actuations
+- as well as the rate of change of throttle and steering actuation
+cte and epsi are given large weights as well as the rate of change of steering angle and throttle for a smooth and accurate controller.
 
 The reference CTE is set to zero, reference epsi is set to zero and ref velocity set to 40. N is the no. of timesteps we are forecasting into the future. The errors were all multiplied by factors (cost_cte, cost_eps etc) which were very important for smooth driving in the simulator and these multipliers were tuned by trying various values
 
@@ -43,16 +45,29 @@ In order to speedup the optimization process, the the initial values of actuatio
 
 The cost also depends on the actuator values and the change in actuation from previous time step. This ensures smooth changes in actuator values. Again the multipliers associated with them were tuned by looking at performance in the simulator. 
 
-	for (int i = 0; i < N - 1; i++) {
-	      fg[0] += cost_current_delta*CppAD::pow(vars[delta_start + i], 2);
-	      fg[1] += cost_current_a*CppAD::pow(vars[a_start + i], 2);
-	    }
+	   // The part of the cost based on the reference state.
+	   for (int i = 0; i < N; i++) {
+	     int wt1=0, wt2=0, wt3=0;
+	     //if (i == N-1) {wt1= 10000*1; wt2 = 50000*1; wt3 = 4;} //terminal cost
+	     //else {wt1= 10000; wt2 = 50000; wt3 = 4;}
+	     wt1= 1*10000; wt2 = 3*50000; wt3 = 4;
+	     fg[0] += wt1*CppAD::pow(vars[cte_start + i] - ref_cte, 2);
+	     fg[0] += wt2*CppAD::pow(vars[epsi_start + i] - ref_epsi, 2);
+	     fg[0] += wt3*CppAD::pow(vars[v_start + i] - ref_v, 2);
+	   }
 
-	// Minimize the value gap between sequential actuations.
-	for (int i = 0; i < N - 2; i++) {
-	fg[0] += cost_diff_delta* CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
-	fg[1] += cost_diff_a*CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2);
-	}
+	   // Minimize the use of actuators.
+	   for (int i = 0; i < N - 1; i++) {
+	     fg[0] += 2000*CppAD::pow(vars[delta_start + i], 2);
+	     fg[0] += 20*CppAD::pow(vars[a_start + i], 2);
+	   }
+
+	   // Minimize the value gap between sequential actuations.
+	   for (int i = 0; i < N - 2; i++) {
+	     fg[0] += 1000*80000*(CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2));
+	     fg[0] += 20*5000*(CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2));
+	   }
+
 
 **MPC Setup**
 As described in the lectures, the following are the steps for executing MPC
@@ -61,16 +76,20 @@ As described in the lectures, the following are the steps for executing MPC
         See below for definitions of N, dt, and discussion on parameter tuning.
 
 2. Fit polynomial to way points and use that to set the intial cross track error and orientation error
+
 3. Define vehicle dynamics and actuator limitations along with other constraints.
         See the state, actuators and update equations above.
+
 4. Define the cost function (as explained above)
 
-Once all the model is set and all the parameters are defined, 
+Once all the model is set and all the parameters are defined:
 1. We pass the current state as the initial state to the model predictive controller.
 
 2. We call the optimization solver. Given the initial state, the solver will return the vector of control inputs that minimizes the cost function. The solver we'll use is called Ipopt.
+
 3. We apply the first control input to the vehicle.
- and  Back to 1.
+
+4. Repeat i.e. back to 1.
 
 ## 2. Timestep Length (N) and Frequency (dt)
 
@@ -87,14 +106,14 @@ Tuning of N and dt
 
 ## 3. Polynomial Fitting and MPC Preprocessing
 
-The x and y coordinates received from the simulator were in the map space. They were converted to vehicle space. Once the coordinates were in the vehicle space, a 3rd degree (cubic) polynomial was used to fit the waypoints data. This polynomial is then used to describe the reference trajectory at each time step over the horizon when performing the optimization. The waypoints were not preprocessed, instead, a polynomial curve is fitted in real time for best performance and robustness.
+The x and y coordinates received from (the planner in) the simulator were in the map space. They were converted to vehicle space. Once the coordinates were in the vehicle space, a 3rd degree (cubic) polynomial was used to fit the waypoints data. This polynomial is then used to describe the reference trajectory at each time step over the horizon when performing the optimization. The waypoints were not preprocessed; instead, a polynomial curve is fitted in real time for best performance and robustness.
 
 
 ## 4. Dealing with latency
 
 The simulator has been setup to have a latency of 100ms. This means that the actuator inputs sent to the simulator execute with a delay of 100ms. I found that the best approach to dealing with latency is to explicitely account for it in the MPC model. I incorporated latency in the MPC state before passing it to the solver. As a result the solution from the solver - steering and throttle better account for the current state of the vehicle. Also I found that having dt > latency ensured smooth motion in the simulator.
 
-The controller is designed to work well with a latency of 100ms in the actuation commands.
+So the controller is designed to work well with a latency of 100ms in the actuation commands.
 MPC controllers are generally much better in handling latency due to the following two reasons:
 
 	a. The initial state used by the MPC solver is generated by predicting the measured state forward in time (latency time) using the kinematic model of the vehicle and asssuming the previous set of actuations hold over the latency period.
@@ -106,7 +125,9 @@ Together with these two approaches, the controller is designed to handle latncy 
 
 The vehcle never leaves the drivable portion of the track while moving at a maximum speed of almost 80mph. Which much better than was able to achieve using the PID controller or even using behavioural cloning using CNNs.
 
+
 ---
+The project can be run using cmake and make as per the instructions provided.
 
 ## Dependencies
 
