@@ -8,12 +8,12 @@ The model is composed of a few different things:
 
 **State**
 Given MPC is a constrained optimization problem at every time step over some finite time horizon, having a good vehicle dynamics model is very important. However, there is tradeoff between model accuracy and computation speed. And given the optimization problem is to be solved at every point in time, the model cannot be very complicated due to computational challenges. For this project, the model used is the basic kinematics model presented in the lectures. It is a state-space based kinematics model with the following components constituting the state:
-	a. x position of the car
-	b. y position of the car
-	c. ψ (orientation) of the car
-	d. v (velocity/speed) of the car
-	e. cte (cross track error) is the difference between the car position and the reference trajectory. This error needs to be minimized.
-	f. epsi (psi error) is the difference between the car's orientation and the desired/target orientation. This is to be minimized.
+	- x position of the car
+	- y position of the car
+	- ψ (orientation) of the car
+	- v (velocity/speed) of the car
+	- cte (cross track error) is the difference between the car position and the reference trajectory. This error needs to be minimized.
+	- epsi (psi error) is the difference between the car's orientation and the desired/target orientation. This is to be minimized.
 The variables x, y, ψ and v are received from the simulator. The x, y position (waypoints) are in the map coordinate system, so they are first transformed into the vehicle coordinate system (by translation followed by rotation).
 
 **Actuators**
