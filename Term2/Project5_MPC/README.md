@@ -17,7 +17,7 @@ Given MPC is a constrained optimization problem at every time step over some fin
 The variables x, y, ψ and v are received from the simulator. The x, y position are in the map coordinates and are converted into the vehicle coordinate system. 
 
 **Actuators**
-The actuation includes throttle (controls acceleration) and steering angle (controls orientation) of the car. These are obtained from the result of the solver and passed to the simulator.
+The actuation includes throttle (controls acceleration/braking) and steering angle (controls orientation) of the car. These are obtained from the result of the solver and passed to the simulator.
 
 **Update Equations**
 The update equations are basically kinematic equations of motion used to set constaints on the optimization problem so that the optimization takes in to account the vehicle dynamics.
