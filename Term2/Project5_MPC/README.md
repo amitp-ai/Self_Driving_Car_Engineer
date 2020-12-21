@@ -94,7 +94,7 @@ The x and y coordinates received from the simulator were in the map space. They 
 
 ## 4. Dealing with latency
 
-The simulator has been setup to have a latency of 100ms. This means that the actuator inputs sent to the simulator execute with a delay of 0.1 s. I found that the best approach to dealing with latency is to explicitely account for it in the MPC model. I incorporated latency in the MPC state before passing it to the solver. As a result the solution from the solver - steering and throttle better account for the current state of the vehicle. Also I found that having dt > latency ensured smooth motion in the simulator.
+The simulator has been setup to have a latency of 100ms. This means that the actuator inputs sent to the simulator execute with a delay of 100ms. I found that the best approach to dealing with latency is to explicitely account for it in the MPC model. I incorporated latency in the MPC state before passing it to the solver. As a result the solution from the solver - steering and throttle better account for the current state of the vehicle. Also I found that having dt > latency ensured smooth motion in the simulator.
 
 The controller is designed to work well with a latency of 100ms in the actuation commands.
 MPC controllers are generally much better in handling latency due to the following two reasons:
