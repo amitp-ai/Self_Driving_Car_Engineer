@@ -50,11 +50,11 @@ The cost also depends on the actuator values and the change in actuation from pr
 	      fg[1] += cost_current_a*CppAD::pow(vars[a_start + i], 2);
 	    }
 
-	    // Minimize the value gap between sequential actuations.
-	    for (int i = 0; i < N - 2; i++) {
-	      fg[0] += cost_diff_delta* CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
-	      fg[1] += cost_diff_a*CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2);
-	    }
+	// Minimize the value gap between sequential actuations.
+	for (int i = 0; i < N - 2; i++) {
+	fg[0] += cost_diff_delta* CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
+	fg[1] += cost_diff_a*CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2);
+	}
 
 **MPC Setup**
 As described in the lectures, the following are the steps for executing MPC
