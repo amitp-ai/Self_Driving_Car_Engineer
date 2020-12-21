@@ -31,7 +31,7 @@ The update equations are basically kinematic equations of motion used to set con
 **Cost Function**
 The key to solving MPC equation is to define the cost properly. This requires a fair bit of tuning. The solver tries to minimize the cost. 
 
-The cost function to be minimized is a quadratic cost function of cte, epsi, difference between current and reference speed, actuations, as well as the rate of change of actuations. cte and epsi are given large weights as well as the rate of change of steeringing angle and throttle for a smooth and accurate controller.
+The cost function to be minimized is a quadratic cost function of cte, epsi, difference between current and reference speed, actuations, as well as the rate of change of actuations. cte and epsi are given large weights as well as the rate of change of steering angle and throttle for a smooth and accurate controller.
 
 	 for (int i = 0; i < N; i++) {
 	      fg[0] += cost_cte* CppAD::pow(vars[cte_start + i] - ref_cte, 2);
