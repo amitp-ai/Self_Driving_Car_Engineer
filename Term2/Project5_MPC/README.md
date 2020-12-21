@@ -1,7 +1,29 @@
 # Model Predictive Control (MPC)
 
-**summary**
-MPC is an optimal controller where we have a model of the system we are trying to control. At each time step, we calculate the best set of control actions by the controller that minimizes a predefined cost function over a specific time horizon. The goal of the optimizer is to minimize the cost function while satisfying constraints such as system dynamics, actuator limitations, etc. We pick the control actions for the most immediate time step and then repeat the process.
+Below is my implementation for the MPC project in term 2 of Udacity's Self driving car nanodegree program.
+
+## Introduction
+MPC is an optimal controller where we have a model of the system we are trying to control. At each time step, we calculate the best set of control actions by the controller that minimizes a predefined cost function over a specific time horizon. The goal of the optimizer is to minimize the cost function while satisfying constraints such as system dynamics, actuator limitations, etc. We pick the control actions for the most immediate time step and then repeat the process. While computationally expensive, MPC is a much better controller than traditional PID or iterative LQR based controllers as it can more effectively handle system latency as well as actuator constraints.
+
+**MPC Setup**
+At high level, the following are the steps for executing MPC:
+
+1. Define the length of the trajectory (N) and duration of each timestep (dt). See below for definitions of N, dt, and discussion on parameter tuning.
+
+2. Fit polynomial to way points (i.e. reference trajectory) and use that to set the intial cross track error and orientation error
+
+3. Define vehicle dynamics and actuator limitations along with other constraints. See the state, actuators and update equations below.
+
+4. Define the cost function (as explained below)
+
+Once all the model is set and all the parameters are defined:
+1. We pass the current state as the initial state to the model predictive controller.
+
+2. We call the optimization solver. Given the initial state, the solver will return the vector of control inputs that minimizes the cost function. The solver we'll use is called Ipopt.
+
+3. We apply the first control input to the vehicle.
+
+4. Repeat i.e. back to 1.
 
 ## 1. The Model
 The model is composed of a few different things:
@@ -70,28 +92,6 @@ The cost also depends on the actuator values and the change in actuation from pr
 	   }
 
 
-**MPC Setup**
-As described in the lectures, the following are the steps for executing MPC
-
-1. Define the length of the trajectory, N, and duration of each timestep, dt.
-        See below for definitions of N, dt, and discussion on parameter tuning.
-
-2. Fit polynomial to way points (i.e. reference trajectory) and use that to set the intial cross track error and orientation error
-
-3. Define vehicle dynamics and actuator limitations along with other constraints.
-        See the state, actuators and update equations above.
-
-4. Define the cost function (as explained above)
-
-Once all the model is set and all the parameters are defined:
-1. We pass the current state as the initial state to the model predictive controller.
-
-2. We call the optimization solver. Given the initial state, the solver will return the vector of control inputs that minimizes the cost function. The solver we'll use is called Ipopt.
-
-3. We apply the first control input to the vehicle.
-
-4. Repeat i.e. back to 1.
-
 ## 2. Timestep Length (N) and Frequency (dt)
 
 * Timestep length (N) - Is the number of timesteps the model predicts ahead. As N increases, the model predicts further ahead. The further ahead that the model predicts, the more inaccurate those predictions will be. Also if N is large, then a lot more computations need to happen which can lead to inaccurate results from the solver or solver unable to provide the solution in real time. I found that N around 10-15 steps was the best.
@@ -122,9 +122,12 @@ MPC controllers are generally much better in handling latency due to the followi
 
 Together with these two approaches, the controller is designed to handle latncy of even hundreds of milli-seconds.
 
+
 ## 5. Compared to PID Control
 
 The vehcle never leaves the drivable portion of the track while moving at a maximum speed of almost 80mph. Which is much better than was able to achieve using the PID controller or even using behavioural cloning using CNNs.
+
+For more details, please refer to my github: https://github.com/gtg162y/Self_Driving_Car_Engineer
 
 ---
 
