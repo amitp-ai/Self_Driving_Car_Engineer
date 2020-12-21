@@ -20,8 +20,8 @@ As detailed below, the program covered a wide range of topics including traditio
 
 ## Term 2: Sensor Fusion, Localization, and Control (Spring 2017)
 **Sensor Fusion (C++)**
-* Project 1: Combine lidar and radar data to track non-linear objects using Extended Kalman filter (EKF) 
-* Project 2: Combine lidar and radar data to more accurately track non-linear objects using Unscented Kalman filter (UKF) 
+* Project 1: Combine lidar and radar data to track objects with non-linear dynamics using Extended Kalman filter (EKF) 
+* Project 2: Combine lidar and radar data to more accurately track objects with non-linear dynamics using Unscented Kalman filter (UKF) 
 
 
 **Localization (C++)**
