@@ -34,8 +34,8 @@ As detailed below, the program covered a wide range of topics including traditio
 
 ## Term 3: Path Planning, Semantic Segmentation, and System Integration (Summer 2017)
 **Path Planning (C++)**
-* Project 1: Using a finite-state machine (FSM), generated a smooth trajectory (as well as proper speed) to navigate the vehicle on a highway while avoiding obstacles and other vehicles. 
-Additionally, used A* and Dynamic Programming to a sequence of steps in a maze to navigate unstructured environments e.g. cities, parking lots, etc.
+* Project 1: Using a finite-state machine (FSM), generated a smooth trajectory (as well as proper speed) to navigate the vehicle on a highway while avoiding obstacles and other vehicles. <br \>
+Additionally, used A* and Dynamic Programming to generate a sequence of steps to navigate unstructured environments e.g. parking lots, etc.
 
 **Semantic Segmentation (Python/Tensorflow)**
 * Project 2: Using Fully-Convolutional Network (FCN) based semantic segmentation architecture, classified each pixel in the image into road, car, or everything else category.
