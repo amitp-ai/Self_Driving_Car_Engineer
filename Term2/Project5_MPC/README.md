@@ -1,9 +1,11 @@
 # Model Predictive Control (MPC)
 
-Below is my implementation for the MPC project in term 2 of Udacity's Self driving car nanodegree program.
-
 ## Introduction
+Below is my implementation for the MPC project in term 2 of Udacity's Self driving car nanodegree program. The objective is to drive a vehicle in a simulator environment to drive as as fast as possible without leaving the drivable portion of the road.
+
 MPC is an optimal controller where we have a model of the system we are trying to control. At each time step, we calculate the best set of control actions by the controller that minimizes a predefined cost function over a specific time horizon. The goal of the optimizer is to minimize the cost function while satisfying constraints such as system dynamics, actuator limitations, etc. We pick the control actions for the most immediate time step and then repeat the process. While computationally expensive, MPC is a much better controller than traditional PID or iterative LQR based controllers as it can more effectively handle system latency as well as actuator constraints.
+
+Essentially, it optimizes the car’s trajectory based on its current state by calculating trajectories and their corresponding costs for different steering and throttle actuations. The actuations with the lowest associated cost are then executed. This process is repeated for the state following the actuations.
 
 **MPC Setup**
 At high level, the following are the steps for executing MPC:
@@ -29,7 +31,7 @@ Once all the model is set and all the parameters are defined:
 The model is composed of a few different things:
 
 **State**
-Given MPC is a constrained optimization problem at every time step over some finite time horizon, having a good vehicle dynamics model is very important. However, there is tradeoff between model accuracy and computation speed. And given the optimization problem is to be solved at every point in time, the model cannot be very complicated due to computational challenges. For this project, the model used is the basic kinematics model presented in the lectures. It is a state-space based kinematics model with the following components constituting the state:
+Given MPC is a constrained optimization problem at every time step over some finite time horizon, having a good vehicle dynamics model is very important. However, there is tradeoff between model accuracy and computation speed. And given the optimization problem is to be solved at every point in time, the model cannot be very complicated due to computational challenges. For this project, the model used is the basic kinematics model. It is a state-space based kinematics model with the following components constituting the state:
 - x position of the car
 - y position of the car
 - ψ (orientation) of the car
@@ -40,8 +42,11 @@ Given MPC is a constrained optimization problem at every time step over some fin
 The variables x, y, ψ and v are received from the simulator. The x, y position (waypoints) are in the map coordinate system, so they are first transformed into the vehicle coordinate system (by translation followed by rotation).
 
 **Actuators**
-The actuation includes throttle (controls acceleration/braking) and steering angle (controls orientation) of the car. These are obtained from the result of the optimizer/solver and passed to the simulator.
+The actuation is a vector [a, δ] where a is the throttle that controls acceleration/braking and δ is the steering angle that controls orientation of the car. These are obtained from the result of the optimizer/solver and passed to the simulator. The actuation is bouded with the following limits:
 
+- a is in the range [-1,1] i.e. [full brake, full throttle]
+- δ is in the range [-25o, 25o]
+π
 **Update/State Equations**
 The update equations are basically kinematic equations of motion used to set constaints on the optimization problem so that the optimization takes in to account the vehicle dynamics. They are basically discrete-time difference-equations for state-space based representation.
 
@@ -125,6 +130,7 @@ Together with these two approaches, the controller is designed to handle latncy 
 
 ## 5. Compared to PID Control
 
+MPC is a much better controller than the PID Controller in this application because it optimizes the car’s controls based on its current state and the planned path. As a result, the maximum attainable speed is almost doubled when compared to the results of my PID Controller project.
 The vehcle never leaves the drivable portion of the track while moving at a maximum speed of almost 80mph. Which is much better than was able to achieve using the PID controller or even using behavioural cloning using CNNs.
 
 For more details, please refer to my github: https://github.com/gtg162y/Self_Driving_Car_Engineer
