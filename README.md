@@ -20,8 +20,8 @@ As detailed below, the program covered a wide range of topics including traditio
 
 ## Term 2: Sensor Fusion, Localization, and Control (Spring 2017)
 **Sensor Fusion (C++)**
-* Project 1: Combine lidar and radar data to track objects in the environment using Extended Kalman filter (EKF) 
-* Project 2: Combine lidar and radar data to track objects in the environment using Unscented Kalman filter (UKF) 
+* Project 1: Combine lidar and radar data to track non-linear objects using Extended Kalman filter (EKF) 
+* Project 2: Combine lidar and radar data to more accurately track non-linear objects using Unscented Kalman filter (UKF) 
 
 
 **Localization (C++)**
@@ -34,7 +34,7 @@ As detailed below, the program covered a wide range of topics including traditio
 
 ## Term 3: Path Planning, Semantic Segmentation, and System Integration (Summer 2017)
 **Path Planning (C++)**
-* Project 1: Using a finite-state machine (FSM), generated a smooth trajectory (as well as proper speed) to navigate the vehicle on a highway while avoiding obstacles and other vehicles. <br \>
+* Project 1: Using a finite-state machine (FSM), generated a smooth trajectory (as well as proper speed) to navigate the vehicle on a highway while avoiding obstacles and other vehicles. <br />
 Additionally, used A* and Dynamic Programming to generate a sequence of steps to navigate unstructured environments e.g. parking lots, etc.
 
 **Semantic Segmentation (Python/Tensorflow)**
