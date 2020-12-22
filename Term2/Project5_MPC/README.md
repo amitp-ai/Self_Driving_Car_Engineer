@@ -1,4 +1,4 @@
-Project writeup: https://amitpatel-gt.medium.com/model-predictive-control-mpc-573517da7f1a
+## Project writeup: https://amitpatel-gt.medium.com/model-predictive-control-mpc-573517da7f1a
 
 ---
 
