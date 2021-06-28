@@ -48,7 +48,7 @@ class FG_eval {
    // Any additions to the cost should be added to `fg[0]`.
    fg[0] = 0;
 
-   // The part of the cost based on the reference state.
+   // cost function component to track the reference trajectory.
    for (int i = 0; i < N; i++) {
      int wt1=0, wt2=0, wt3=0;
      //if (i == N-1) {wt1= 10000*1; wt2 = 50000*1; wt3 = 4;} //terminal cost
@@ -59,16 +59,18 @@ class FG_eval {
      fg[0] += wt3*CppAD::pow(vars[v_start + i] - ref_v, 2);
    }
 
-   // Minimize the use of actuators.
+   // cost function component to minimize the use of actuators
+   wt4 = 2000; wt5 = 20;
    for (int i = 0; i < N - 1; i++) {
-     fg[0] += 2000*CppAD::pow(vars[delta_start + i], 2);
-     fg[0] += 20*CppAD::pow(vars[a_start + i], 2);
+     fg[0] += wt4*CppAD::pow(vars[delta_start + i], 2);
+     fg[0] += wt5*CppAD::pow(vars[a_start + i], 2);
    }
 
-   // Minimize the value gap between sequential actuations.
+   // cost function component to minimize the rate of change of actuation.
+   wt6 = 1000*80000; wt7 = 20*5000;
    for (int i = 0; i < N - 2; i++) {
-     fg[0] += 1000*80000*(CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2));
-     fg[0] += 20*5000*(CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2));
+     fg[0] += wt6*(CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2));
+     fg[0] += wt7*(CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2));
    }
 
    //
