@@ -1,5 +1,5 @@
 ## Project writeup: 
-https://amitpatel-gt.medium.com/model-predictive-control-mpc-573517da7f1a
+https://amitp-ai.medium.com/model-predictive-control-mpc-for-autonomous-vehicles-e0fdf75a9661  
 
 ---
 
